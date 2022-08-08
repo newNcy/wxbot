@@ -43,7 +43,7 @@ auto rel2abs(int rel)
 	return (wxbase() + (int)rel + 0xc00);
 }
 
-std::string wstring2string(std::wstring wstr)
+std::string wstring2string(const std::wstring & wstr)
 {
 	std::string result;
 	int len = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.size(), NULL, 0, NULL, NULL);
@@ -52,6 +52,14 @@ std::string wstring2string(std::wstring wstr)
 	buffer[len] = '\0';
 	result.append(buffer);
 	delete[] buffer;
+	return result;
+}
+
+std::wstring string2wstring(const std::string& str)
+{
+	int len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), nullptr, 0);
+	std::wstring result(len, 0);
+	MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), result.data(), result.size());
 	return result;
 }
 
@@ -66,6 +74,7 @@ std::string read_utf8(char* msg)
 }
 
 
+
 Entry dispatch_for_ret(int ret, int eax, int ecx, int edx, int ebx, int esi, int edi)
 {
 	auto hook = hook_info[(address_t)ret];
@@ -76,7 +85,7 @@ Entry dispatch_for_ret(int ret, int eax, int ecx, int edx, int ebx, int esi, int
 }
 
 /*
- * 需要nake，因为在保存堆栈前需要插一个0到栈上，后面可以把原函数的绝对地址放到上面去，利用ret跳过去
+ * 需要nake，因为在保存堆栈前需要插一个0到栈上，后面可以把原函数的绝对地址放到上面去，利用ret跳过去,可以不用污染任何寄存器
  */
 void __declspec(naked) hook_dispatch()
 {
@@ -157,7 +166,6 @@ R call_remote(int rel, Args && ... args)
 	call_abs(std::forward<Args>(args)..., remote_fn);
 }
 
-
 struct wstring
 {
 	wchar_t* data;
@@ -187,16 +195,14 @@ struct wstring
 
 
 
-void sendText(const std::wstring& wxid, const std::wstring& text)
+void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text)
 {
 	wstring id(wxid);
 	wstring content(text);
 	Entry remote_fn = (Entry)rel2abs(0x55C720);
-	char* buf = new char[1024];
-	char* buf2 = new char[1024];
+	char* buf = new char[2048]();
+	char* buf2 = new char[2048]();
 	__asm {
-		pushad;
-		pushfd;
 		push 0;
 		push 0;
 		push 1;
@@ -208,23 +214,33 @@ void sendText(const std::wstring& wxid, const std::wstring& text)
 		lea edx, id;
 		call remote_fn;
 		add esp, 20;
-		popfd;
-		popad;
-		ret;
 	}
-}
+	delete[] buf;
+	delete[] buf2;
+} 
 
-void on_recv_msg(int, int, int, int, int, char* msg)
+void sendText(const std::string& wxid, const std::string& text)
 {
-	auto source = read_utf8(msg + 0x48);
-	auto content = read_utf8(msg + 0x70);
-	auto member = read_utf8(msg + 0x174);
-
-	MessageBox(0, content.c_str(), source.c_str(), 0);
-	sendText(L"filehelper", L"消息测试");
+	auto wid = string2wstring(wxid);
+	auto wtext = string2wstring(text);
+	sendText(wid, wtext);
 }
 
+void on_recv_msg(int eax, int ecx, int edx, int ebx, int esi, char* edi)
+{
+	auto source = read_utf8(edi + 0x48);
+	auto content = read_utf8(edi + 0x70);
+	auto member = read_utf8(edi + 0x174);
 
+	printf("%s:%s:%s\n", source.c_str(),member.c_str(), content.c_str());
+	sendText("filehelper", source + ":" + member +":" + content);
+}
+
+void openConsole()
+{
+	AllocConsole();
+	freopen("CONOUT$", "w+t", stdout);
+}
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD e, LPVOID reserve)
 {
@@ -238,10 +254,12 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD e, LPVOID reserve)
 	switch (e) {
 		case DLL_THREAD_ATTACH: break;
 		case DLL_THREAD_DETACH: break;
-		case DLL_PROCESS_ATTACH: 
+		case DLL_PROCESS_ATTACH:
+			openConsole();
 			for (auto& h : table) {
 				install(h.first, h.second);
 			}
+			
 			break;
 		case DLL_PROCESS_DETACH: 
 			for (auto& h : table) {

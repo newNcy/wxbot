@@ -39,19 +39,15 @@ inline void assertf(bool res, const char* f, ...)
 void loadDll(int pid, const std::string& path)
 {
     auto process = OpenProcess(PROCESS_ALL_ACCESS, false, pid);
-    if (!process) {
-        printf("[%d]获取进程失败, 可能是权限不足\n", pid);
-        return;
-    }
+    assertf(process, "获取进程失败");
 
     auto remotePath = VirtualAllocEx(process, nullptr, path.size(), MEM_COMMIT, PAGE_READWRITE);
-    if (!remotePath) {
-        printf("[%d]为进程开辟内存失败, 可能是权限不足\n", pid);
-        return;
-    }
+    assertf(remotePath, "开辟内存失败");
 
     auto res = WriteProcessMemory(process, remotePath, path.data(), path.size(), nullptr);
     assertf(res, "写入内存失败");
+
+    //auto unload = GetProcAddress(GetModuleHandle("Kernel32.dll"), "FreeLibrary");
 
     auto loadLibrary = GetProcAddress(GetModuleHandle("Kernel32.dll"), "LoadLibraryA");
     assertf(loadLibrary, "获取内存写入函数失败");
@@ -94,15 +90,13 @@ void callRemote(const char* name)
 
 
 
-
-
-
 int main(int argc, char * argv[])
 {
     std::filesystem::path me(argv[0]);
     std::cout << argv[0] << std::endl;
     try {
         loadDll("WeChat.exe", (me.parent_path() / "wxhook.dll").string());
+
     }
     catch (std::runtime_error & e) {
         printf("error:%s\n", e.what());
