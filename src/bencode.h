@@ -14,6 +14,7 @@ namespace bencode
         bvalue_t(byte_t type):type(type){}
         bvalue_t(int i):type(0), i(i) {}
         bvalue_t(const std::string & str):type(1), s(str) {}
+        
         ~bvalue_t() {}
         union
         {

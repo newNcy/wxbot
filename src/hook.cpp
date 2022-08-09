@@ -273,6 +273,7 @@ void eventLoop()
             return;
         }
 		int sock = -1;
+		std::shared_ptr<std::string> msg;
         while (true) {
             while (sock < 0) {
                 sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -290,45 +291,54 @@ void eventLoop()
                 peer.sin_port = htons(1224);
 
 				int res = connect(sock, (sockaddr*)&peer, sizeof(peer));
-				printf("connect %d %d\n", sock, res);
+				static int d = 0;
+				char* s = "\\|/-";
 				if ( res == SOCKET_ERROR) {
-					printf("connect to server failed\n");
-
-                    auto err = WSAGetLastError();
-                    char* buffer = nullptr;
-                    ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0, (LPTSTR)&buffer, 0, NULL);
-                    printf("error %s\n", buffer);
+					printf("\rconnecting to 127.0.0.1:1224 %c", s[d]);
+					fflush(stdout);
 					closesocket(sock);
 					sock = -1;
-					std::this_thread::sleep_for(std::chrono::seconds(1));
+					std::this_thread::sleep_for(std::chrono::milliseconds(300));
+					d = (d+1)%4;
 				}
 				else {
+					if (d) {
+						putchar('\n');
+						d = 0;
+					}
                     printf("connected to manager\n");
                     unsigned long opt = 0;
                     //ioctlsocket(sock, FIONBIO, &opt);
 				}
 			}
 			
-			std::shared_ptr<std::string> msg;
-			while (msg = pickMsg()) {
-				printf("send to server: %s:%d\n", msg->c_str(), msg->length());
-				send(sock, msg->c_str(), msg->size(), 0);
+			
+			if (msg = pickMsg()) {
+				int sc = send(sock, msg->c_str(), msg->size(), 0);
+				if (sc < 0) {
+					closesocket(sock);
+					sock = -1;
+					printf("disconnected from manager\n");
+					continue;
+				}
 			}
-
 			fd_set rs;
 			FD_ZERO(&rs);
 			FD_SET(sock, &rs);
 			timeval tv;
 			tv.tv_sec = 0;
-			tv.tv_usec = 10 * 1000;
+			tv.tv_usec = 10;
 			int n = select(sock, &rs, nullptr, nullptr, &tv);
 			if (n > 0) {
 				char buff[1024] = { 0 };
 				int rc = recv(sock, buff, 1024, 0);
-				if (rc == 0) {
+				if (rc <= 0) {
 					closesocket(sock);
 					sock = -1;
                     printf("disconnected from manager\n");
+				}
+				else {
+					sendText("filehelper", buff);
 				}
 			}
 		}

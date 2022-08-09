@@ -2,7 +2,8 @@ project(wxbot)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_library(bencode src/bencode.cpp)
+include_directories(src)
+add_library(bencode src/bencode.cpp src/bencode.h)
 
 add_executable(wxbot src/main.cpp)
 target_link_libraries(wxbot ws2_32 bencode)

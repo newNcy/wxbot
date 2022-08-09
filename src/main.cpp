@@ -143,6 +143,7 @@ public:
                         int len = sizeof(peer);
                         int cli = accept(sock, (sockaddr*)&peer, &len);
                         printf("attach to %d %s:%d\n", cli, inet_ntoa(peer.sin_addr), htons(peer.sin_port));
+                        send(cli, "hello world", 12, 0);
                         FD_SET(cli, &fs);
                         fds[cli] = cli;
                     }
@@ -170,7 +171,6 @@ int main(int argc, char* argv[])
     s.encode(ss);
     i.encode(ss);
     std::cout << ss.str()<<std::endl;
-    return 0;
     std::filesystem::path me(argv[0]);
     std::cout << argv[0] << std::endl;
     try {
