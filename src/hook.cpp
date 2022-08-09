@@ -1,9 +1,15 @@
-#include <Windows.h>
 #include <string>
 #include <sstream>
 #include <iostream>
 #include <thread>
 #include <map>
+#include <queue>
+#include <mutex>
+
+#include <WinSock2.h>
+#include <Windows.h>
+
+#pragma comment(lib, "ws2_32.lib")
 
 using address_t = char *;
 
@@ -59,7 +65,7 @@ std::wstring string2wstring(const std::string& str)
 {
 	int len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), nullptr, 0);
 	std::wstring result(len, 0);
-	MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), result.data(), result.size());
+	MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), (wchar_t*)result.data(), result.size());
 	return result;
 }
 
@@ -219,6 +225,9 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text)
 	delete[] buf2;
 } 
 
+std::queue<std::shared_ptr<std::string>> msgs;
+std::mutex mtx;
+
 void sendText(const std::string& wxid, const std::string& text)
 {
 	auto wid = string2wstring(wxid);
@@ -232,14 +241,100 @@ void on_recv_msg(int eax, int ecx, int edx, int ebx, int esi, char* edi)
 	auto content = read_utf8(edi + 0x70);
 	auto member = read_utf8(edi + 0x174);
 
-	printf("%s:%s:%s\n", source.c_str(),member.c_str(), content.c_str());
-	sendText("filehelper", source + ":" + member +":" + content);
+
+	//sendText("filehelper", source + ":" + member +":" + content);
+	std::lock_guard<std::mutex> _(mtx);
+	msgs.push(std::make_shared<std::string>(source + ":" + member + ":" + content));
 }
 
 void openConsole()
 {
 	AllocConsole();
 	freopen("CONOUT$", "w+t", stdout);
+}
+
+std::shared_ptr<std::string> pickMsg()
+{
+	std::lock_guard<std::mutex> _(mtx);
+	if (!msgs.empty()) {
+		auto msg = msgs.front();
+		msgs.pop();
+		return msg;
+	}
+	return nullptr;
+}
+
+void eventLoop()
+{
+	auto postToServer = [&] {
+        WSADATA data;
+        if (WSAStartup(MAKEWORD(2, 2), &data) != 0) {
+            throw std::runtime_error("winsock init failed");
+            return;
+        }
+		int sock = -1;
+        while (true) {
+            while (sock < 0) {
+                sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+                if (socket < 0) {
+					continue;
+                }
+
+                unsigned long opt = 1;
+                //ioctlsocket(sock, FIONBIO, &opt);
+
+                sockaddr_in peer;
+                memset(&peer, 0, sizeof(peer));
+                peer.sin_family = AF_INET;
+                peer.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+                peer.sin_port = htons(1224);
+
+				int res = connect(sock, (sockaddr*)&peer, sizeof(peer));
+				printf("connect %d %d\n", sock, res);
+				if ( res == SOCKET_ERROR) {
+					printf("connect to server failed\n");
+
+                    auto err = WSAGetLastError();
+                    char* buffer = nullptr;
+                    ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, err, 0, (LPTSTR)&buffer, 0, NULL);
+                    printf("error %s\n", buffer);
+					closesocket(sock);
+					sock = -1;
+					std::this_thread::sleep_for(std::chrono::seconds(1));
+				}
+				else {
+                    printf("connected to manager\n");
+                    unsigned long opt = 0;
+                    //ioctlsocket(sock, FIONBIO, &opt);
+				}
+			}
+			
+			std::shared_ptr<std::string> msg;
+			while (msg = pickMsg()) {
+				printf("send to server: %s:%d\n", msg->c_str(), msg->length());
+				send(sock, msg->c_str(), msg->size(), 0);
+			}
+
+			fd_set rs;
+			FD_ZERO(&rs);
+			FD_SET(sock, &rs);
+			timeval tv;
+			tv.tv_sec = 0;
+			tv.tv_usec = 10 * 1000;
+			int n = select(sock, &rs, nullptr, nullptr, &tv);
+			if (n > 0) {
+				char buff[1024] = { 0 };
+				int rc = recv(sock, buff, 1024, 0);
+				if (rc == 0) {
+					closesocket(sock);
+					sock = -1;
+                    printf("disconnected from manager\n");
+				}
+			}
+		}
+	};
+    std::thread t(postToServer);
+	t.detach();
 }
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD e, LPVOID reserve)
@@ -259,7 +354,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD e, LPVOID reserve)
 			for (auto& h : table) {
 				install(h.first, h.second);
 			}
-			
+			eventLoop();
 			break;
 		case DLL_PROCESS_DETACH: 
 			for (auto& h : table) {
