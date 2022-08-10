@@ -5,6 +5,8 @@
 #include <map>
 #include <queue>
 #include <mutex>
+#include <functional>
+#include "json.h"
 
 #include <WinSock2.h>
 #include <Windows.h>
@@ -52,9 +54,9 @@ auto rel2abs(int rel)
 std::string wstring2string(const std::wstring & wstr)
 {
 	std::string result;
-	int len = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.size(), NULL, 0, NULL, NULL);
+	int len = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), wstr.size(), NULL, 0, NULL, NULL);
 	char* buffer = new char[len + 1];
-	WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), wstr.size(), buffer, len, NULL, NULL);
+	WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), wstr.size(), buffer, len, NULL, NULL);
 	buffer[len] = '\0';
 	result.append(buffer);
 	delete[] buffer;
@@ -225,7 +227,14 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text)
 	delete[] buf2;
 } 
 
-std::queue<std::shared_ptr<std::string>> msgs;
+struct WxMsg
+{
+	std::string source;
+	std::string content;
+	std::string member;
+};
+
+std::queue<std::shared_ptr<WxMsg>> msgs;
 std::mutex mtx;
 
 void sendText(const std::string& wxid, const std::string& text)
@@ -244,7 +253,11 @@ void on_recv_msg(int eax, int ecx, int edx, int ebx, int esi, char* edi)
 
 	//sendText("filehelper", source + ":" + member +":" + content);
 	std::lock_guard<std::mutex> _(mtx);
-	msgs.push(std::make_shared<std::string>(source + ":" + member + ":" + content));
+	auto msg = std::make_shared<WxMsg>();
+	msg->source.swap(source);
+	msg->content.swap(content);
+	msg->member.swap(member);
+	msgs.push(msg);
 }
 
 void openConsole()
@@ -253,7 +266,7 @@ void openConsole()
 	freopen("CONOUT$", "w+t", stdout);
 }
 
-std::shared_ptr<std::string> pickMsg()
+std::shared_ptr<WxMsg> pickMsg()
 {
 	std::lock_guard<std::mutex> _(mtx);
 	if (!msgs.empty()) {
@@ -262,6 +275,16 @@ std::shared_ptr<std::string> pickMsg()
 		return msg;
 	}
 	return nullptr;
+}
+
+/* {"source": "{msg.source}", "member":"{msg.mmeber}", "content": "{msg.content}"}*/
+std::string formatWxMsg(const WxMsg& msg)
+{
+	json::value_t val;
+	val["source"] = msg.source;
+	val["member"] = msg.member;
+	val["content"] = msg.content;
+	return val.tostring();
 }
 
 void eventLoop()
@@ -312,10 +335,12 @@ void eventLoop()
 				}
 			}
 			
-			
+			std::shared_ptr<WxMsg> msg;
 			if (msg = pickMsg()) {
-				int sc = send(sock, msg->c_str(), msg->size(), 0);
-				if (sc < 0) {
+				//printf("send to server: %s:%d\n", msg->c_str(), msg->length());
+				auto str = formatWxMsg(*msg);
+				int sc = send(sock, str.c_str(), str.size(), 0);
+                if (sc < 0) {
 					closesocket(sock);
 					sock = -1;
 					printf("disconnected from manager\n");
@@ -347,15 +372,37 @@ void eventLoop()
 	t.detach();
 }
 
+void __declspec(naked) push(int t)
+{
+}
+
+void __declspec(naked) push(wchar_t * t)
+{
+}
+
+template <typename T>
+struct Call;
+template <typename R, typename ... Args>
+struct Call<R(Args...)>
+{
+	int rel = 0;
+	Call(int rel) :rel(rel) {}
+
+	R operator () (Args && ... args)
+	{
+		// TODO 
+	}
+};
+
 BOOL APIENTRY DllMain(HMODULE module, DWORD e, LPVOID reserve)
 {
-	std::map<int, void*> table = {
-		{0x6EA632, on_recv_msg},
-	};
 
-	std::map<std::string, int> remote = {
-		{"sendMsg", 0x55C720},
-	};
+	//Call<void(const wchar_t*, const wchar_t*)> sendMsg(0x55C720);
+	//sendMsg(L"filehelper", L"hello world");
+
+    std::map<int, void*> table = {
+        {0x6EA632, on_recv_msg},
+    };
 	switch (e) {
 		case DLL_THREAD_ATTACH: break;
 		case DLL_THREAD_DETACH: break;

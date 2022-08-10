@@ -7,7 +7,7 @@
 #include <map>
 #include <string>
 #include <filesystem>
-#include "bencode.h"
+#include "json.h"
 
 
 #pragma comment(lib, "ws2_32.lib")
@@ -58,7 +58,6 @@ void loadDll(int pid, const std::string& path)
     assertf(loadLibrary, "获取内存写入函数失败");
 
     auto t = CreateRemoteThreadEx(process, nullptr, 0, (LPTHREAD_START_ROUTINE)loadLibrary, remotePath, 0, nullptr, nullptr);
-    WaitForSingleObject(t, 2000);
     assertf(t, "创建远程线程失败");
     CloseHandle(t);
     CloseHandle(process);
@@ -165,18 +164,17 @@ public:
 
 int main(int argc, char* argv[])
 {
-    bencode::bvalue_t s("hello");
-    bencode::bvalue_t i(124567);
-    std::stringstream ss;
-    s.encode(ss);
-    i.encode(ss);
-    std::cout << ss.str()<<std::endl;
+    json::value_t o;
+    o["to"] = "abc";
+    o["text"] = "abc:\"\"";
+
+    std::cout << o.tostring() << std::endl;
     std::filesystem::path me(argv[0]);
     std::cout << argv[0] << std::endl;
     try {
-        WxManager wxm;
         loadDll("WeChat.exe", (me.parent_path() / "wxhook.dll").string());
-        wxm.run();
+        WxManager wxm;
+        //wxm.run();
     }
     catch (std::runtime_error& e) {
         printf("error:%s\n", e.what());
