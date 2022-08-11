@@ -24,6 +24,7 @@ namespace json
         explicit value_t(bool b) { *this = b; }
         explicit value_t(const std::string& s) { *this = s; }
         explicit value_t(const char * s) { *this = s; }
+        operator std::string& () { return *s; }
         value_t& operator = (bool b) { settag(tag_t::b); this ->b = b; return *this; }
         value_t& operator = (const char * str) { settag(tag_t::s); *s = str; return *this; }
         value_t& operator = (const std::string & str) { settag(tag_t::s); *s = str; return *this; }
@@ -39,6 +40,7 @@ namespace json
             case json::tag_t::b: b = v.b; break;
             default: break;
             }
+            return *this;
         }
         value_t& operator[](const std::string& k) { settag(tag_t::o); return o->operator[](k); }
         void clear()
@@ -125,6 +127,17 @@ namespace json
             }
             return c;
         }
+
+        void whitespace(const std::string& str, int& start)
+        {
+            char c = 0;
+            while (c = getc(str, start)) {
+                if (c != ' ' && c != '\t' && c != '\n') {
+                    start--;
+                    break;
+                }
+            }
+        }
         void fromstring(const std::string& str)
         {
             int start = 0;
@@ -133,6 +146,7 @@ namespace json
 
         void fromstring(const std::string& str, int &start)
         {
+            whitespace(str, start);
             char c = 0;
             if (c = getc(str, start)) {
                 if (c == '"') {
@@ -145,6 +159,7 @@ namespace json
                         }else  if (c == '"' && !turn) {
                             break;
                         }
+                        turn = false;
                         ss << c;
                     }
                     *this = ss.str();
@@ -158,18 +173,49 @@ namespace json
                         }
                         ss << c;
                     }
+                    settag(tag_t::n);
                     ss >> n;
                 }
                 else if (c == '{') {
-                    value_t k;
-                    k.fromstring(str, start);
-                    c = getc(str, start);
-                    assert(c == ':');
-                    value_t v;
-                    v.fromstring(str, start);
-                    o->operator[](*k.s) = v;
+                    settag(tag_t::o);
+                    while (true) {
+                        whitespace(str, start);
+                        c = getc(str, start);
+                        if (c == '}') break;
+                        start--;
+                        value_t k;
+                        k.fromstring(str, start);
+                        c = getc(str, start);
+                        assert(c == ':');
+                        value_t v;
+                        v.fromstring(str, start);
+                        o->operator[](*k.s) = v;
+                        c = getc(str, start);
+                        if (c != ',') {
+                            assert(c == '}');
+                            break;
+                        }
+                    }
+                    whitespace(str, start);
+                }
+                else if (c == '[') {
+                    settag(tag_t::a);
+                    while (true) {
+                        whitespace(str, start);
+                        c = getc(str, start);
+                        if (c == ']') break;
+                        value_t v;
+                        v.fromstring(str, start);
+                        a->push_back(v);
+                        c = getc(str, start);
+                        if (c != ',') {
+                            assert(c == ']');
+                            break;
+                        }
+                    }
                 }
             }
+            whitespace(str, start);
         }
 
         std::string tostring()

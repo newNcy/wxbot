@@ -65,9 +65,9 @@ std::string wstring2string(const std::wstring & wstr)
 
 std::wstring string2wstring(const std::string& str)
 {
-	int len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), nullptr, 0);
+	int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), nullptr, 0);
 	std::wstring result(len, 0);
-	MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), (wchar_t*)result.data(), result.size());
+	MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), (wchar_t*)result.data(), result.size());
 	return result;
 }
 
@@ -287,6 +287,15 @@ std::string formatWxMsg(const WxMsg& msg)
 	return val.tostring();
 }
 
+void handleCmd(const std::string & buff)
+{
+	json::value_t sendCmd;
+	sendCmd.fromstring(buff);
+	std::string & wxid = sendCmd["to"];
+	std::string & content = sendCmd["content"];
+	sendText(wxid, content);
+}
+
 void eventLoop()
 {
 	auto postToServer = [&] {
@@ -363,7 +372,7 @@ void eventLoop()
                     printf("disconnected from manager\n");
 				}
 				else {
-					sendText("filehelper", buff);
+					handleCmd(buff);
 				}
 			}
 		}

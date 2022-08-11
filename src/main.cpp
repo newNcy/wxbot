@@ -142,7 +142,11 @@ public:
                         int len = sizeof(peer);
                         int cli = accept(sock, (sockaddr*)&peer, &len);
                         printf("attach to %d %s:%d\n", cli, inet_ntoa(peer.sin_addr), htons(peer.sin_port));
-                        send(cli, "hello world", 12, 0);
+                        json::value_t cmd;
+                        cmd["to"] = "filehelper";
+                        cmd["content"] = "¸É²Ý¶â";
+                        auto buff = cmd.tostring();
+                        send(cli, buff.c_str(), buff.length(), 0);
                         FD_SET(cli, &fs);
                         fds[cli] = cli;
                     }
@@ -164,17 +168,12 @@ public:
 
 int main(int argc, char* argv[])
 {
-    json::value_t o;
-    o["to"] = "abc";
-    o["text"] = "abc:\"\"";
-
-    std::cout << o.tostring() << std::endl;
     std::filesystem::path me(argv[0]);
     std::cout << argv[0] << std::endl;
     try {
         loadDll("WeChat.exe", (me.parent_path() / "wxhook.dll").string());
         WxManager wxm;
-        //wxm.run();
+        wxm.run();
     }
     catch (std::runtime_error& e) {
         printf("error:%s\n", e.what());
