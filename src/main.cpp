@@ -173,7 +173,7 @@ int main(int argc, char* argv[])
     try {
         loadDll("WeChat.exe", (me.parent_path() / "wxhook.dll").string());
         WxManager wxm;
-        wxm.run();
+        ///wxm.run();
     }
     catch (std::runtime_error& e) {
         printf("error:%s\n", e.what());

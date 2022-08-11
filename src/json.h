@@ -84,6 +84,11 @@ namespace json
                     if (c == '"') {
                         ss << '\\';
                     }
+                    else if (c == '\n') {
+                        ss<<'\\';
+                        ss<<'n';
+                        continue;
+                    }
                     ss << c;
                 }
                 ss << '"';
@@ -156,11 +161,21 @@ namespace json
                         if (c == '\\') {
                             turn = true;
                             continue;
-                        }else  if (c == '"' && !turn) {
+                        }else if (c == '"' && !turn) {
                             break;
                         }
                         turn = false;
-                        ss << c;
+                        if (turn)
+                        {
+                            if (c == 'n')
+                            {
+                                ss << '\n';
+                            }
+                        }
+                        else
+                        {
+                            ss << c;
+                        }
                     }
                     *this = ss.str();
                 }
