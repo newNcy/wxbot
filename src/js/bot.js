@@ -33,6 +33,10 @@ class WxBot {
 
 
 
+
+
+
+/* 机器人 */
 const url = 'https://rpc.flashbots.net/'
 const provider = new ethers.providers.JsonRpcProvider(url)
 
@@ -49,8 +53,16 @@ bot.on_msg( async msg => {
         } else if (cmd == 'menu') {
             return '/gas /<token>'
         }else {
-            let {data} = await axios.get('https://min-api.cryptocompare.com/data/price?fsym='+cmd+'&tsyms=USD')
-            return JSON.stringify(data)
+            let ts = cmd.split(' ')
+            let s = ts[0]
+            let t = 'usd'
+            if (ts.length > 1) {
+                t = ts[1]
+            }
+            console.log(ts)
+            let {data} = await axios.get(`https://min-api.cryptocompare.com/data/price?fsym=${s}&tsyms=${t}`)
+            let p = parseFloat(data[t.toUpperCase()])
+            return `1 ${s} = ${p} ${t}`
         }
     }
     //return msg.content
