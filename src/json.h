@@ -164,7 +164,6 @@ namespace json
                         }else if (c == '"' && !turn) {
                             break;
                         }
-                        turn = false;
                         if (turn)
                         {
                             if (c == 'n')
@@ -176,6 +175,7 @@ namespace json
                         {
                             ss << c;
                         }
+                        turn = false;
                     }
                     *this = ss.str();
                 }

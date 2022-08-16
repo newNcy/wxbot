@@ -5,6 +5,7 @@
 #include <TlHelp32.h>
 #include <process.h>
 #include <map>
+#include <stdlib.h>
 #include <string>
 #include <filesystem>
 #include "json.h"
@@ -178,5 +179,7 @@ int main(int argc, char* argv[])
     catch (std::runtime_error& e) {
         printf("error:%s\n", e.what());
     }
+
+
     return 0;
 }
