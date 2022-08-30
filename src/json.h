@@ -43,6 +43,22 @@ namespace json
             return *this;
         }
         value_t& operator[](const std::string& k) { settag(tag_t::o); return o->operator[](k); }
+        value_t& operator[](int k) { settag(tag_t::a); return a->operator[](k); }
+        size_t size() const 
+        {
+            switch (tag)
+            {
+            case json::tag_t::o:
+                return o->size();
+                break;
+            case json::tag_t::a:
+                return a->size();
+                break;
+            default:
+                break;
+            }
+            return 0;
+        }
         void clear()
         {
             switch (tag)
@@ -219,6 +235,7 @@ namespace json
                         whitespace(str, start);
                         c = getc(str, start);
                         if (c == ']') break;
+                        --start;
                         value_t v;
                         v.fromstring(str, start);
                         a->push_back(v);

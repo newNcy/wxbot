@@ -18,11 +18,15 @@ class WxBot {
                     if (reply != null) {
                         let robj = {
                             to : obj.source,
-                            content : reply
+                            content : reply,
+                            notify : obj.member != '' ? [obj.member] : null,
                         }
                         socket.write(JSON.stringify(robj))
                     }
                 }
+            });
+            socket.on('error', () => {
+                console.log('与微信连接发生错误')
             });
         })
     }

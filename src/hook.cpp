@@ -179,6 +179,7 @@ struct wstring
 	wchar_t* data;
 	int len;
 	int cap;
+	wstring():data(0), len(0),cap(0) {}
 	wstring(const std::wstring& w)
 	{
 		data = new wchar_t[w.length()]();
@@ -201,9 +202,22 @@ struct wstring
 	}
 };
 
+struct WxMsg
+{
+	std::string source;
+	std::string content;
+	std::string member;
+};
 
+struct WxNotify
+{
+	wstring* start, *end1,*end2;
+};
 
-void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text)
+std::queue<std::shared_ptr<WxMsg>> msgs;
+std::mutex mtx;
+
+void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNotify * notify)
 {
 	wstring id(wxid);
 	wstring content(text);
@@ -214,7 +228,7 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text)
 		push 0;
 		push 0;
 		push 1;
-		push buf;
+		push notify;
 		lea edi, content;
 		push edi;	
 
@@ -226,22 +240,20 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text)
 	delete[] buf;
 	delete[] buf2;
 } 
-
-struct WxMsg
-{
-	std::string source;
-	std::string content;
-	std::string member;
-};
-
-std::queue<std::shared_ptr<WxMsg>> msgs;
-std::mutex mtx;
-
-void sendText(const std::string& wxid, const std::string& text)
+void sendText(const std::string& wxid, const std::string& text, std::vector<std::string> & notifyList)
 {
 	auto wid = string2wstring(wxid);
 	auto wtext = string2wstring(text);
-	sendText(wid, wtext);
+	WxNotify notify = { 0, 0, 0 };
+	if (!notifyList.empty()) {
+		notify.start = new wstring[notifyList.size() + 1];
+        int count = 0;
+		for (auto& wxid : notifyList) {
+			notify.start[count++] = string2wstring(wxid);
+		}
+		notify.end1 = notify.end2 = notify.start + count;
+	}
+	sendText(wid, wtext, &notify);
 }
 
 void on_recv_msg(int eax, int ecx, int edx, int ebx, int esi, char* edi)
@@ -293,7 +305,12 @@ void handleCmd(const std::string & buff)
 	sendCmd.fromstring(buff);
 	std::string & wxid = sendCmd["to"];
 	std::string & content = sendCmd["content"];
-	sendText(wxid, content);
+	auto& notifyList = sendCmd["notify"];
+	std::vector<std::string> notify;
+	for (int i = 0; i < notifyList.size(); ++i) {
+		notify.push_back(notifyList[i]);
+	}
+	sendText(wxid, content, notify);
 }
 
 void eventLoop()
