@@ -8,27 +8,53 @@ const url = 'https://rpc.flashbots.net/'
 const provider = new ethers.providers.JsonRpcProvider(url)
 
 class WxBot {
+
     constructor() {
         this.server = net.createServer(socket => {
             socket.on('data', async buffer => {
-                let msg = buffer.toString()
-                let obj = JSON.parse(msg)
-                if (this.msg_callback) {
-                    let reply = await this.msg_callback(obj)
-                    if (reply != null) {
-                        let robj = {
-                            to : obj.source,
-                            content : reply,
-                            notify : obj.member != '' ? [obj.member] : null,
-                        }
-                        socket.write(JSON.stringify(robj))
+                console.log('new', buffer.length)
+                if (this.cache) {
+                    this.cache = Buffer.concat([this.cache, buffer])
+                }else {
+                    this.cache = buffer
+                }
+
+                let buf = this.cache
+                console.log('old', buf.length)
+
+                while (buf.length > 2) {
+                    let len = buf.readUint16BE()
+                    console.log('expect', len)
+                    if (buf.length - 2 >= len) {
+                        let body = buf.slice(2, 2 + len)
+                        this.on_packet(socket, body.toString())
+                        buf = buf.slice(2+len)
+                    } else {
+                        break
                     }
                 }
+
+                this.cache = buf
+                
             });
             socket.on('error', () => {
                 console.log('与微信连接发生错误')
             });
         })
+    }
+    async on_packet(socket, msg) {
+        let obj = JSON.parse(msg)
+        if (this.msg_callback) {
+            let reply = await this.msg_callback(obj)
+            if (reply != null) {
+                let robj = {
+                    to : obj.source,
+                    content : reply,
+                    notify : obj.member != '' ? [obj.member] : null,
+                }
+                socket.write(JSON.stringify(robj))
+            }
+        }
     }
     on_msg(fn) {
         this.msg_callback = fn

@@ -334,16 +334,18 @@ void eventLoop()
                 //ioctlsocket(sock, FIONBIO, &opt);
 
                 sockaddr_in peer;
+				//const char* ip = "47.251.18.70";
+				const char* ip = "127.0.0.1";
                 memset(&peer, 0, sizeof(peer));
                 peer.sin_family = AF_INET;
-                peer.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+                peer.sin_addr.S_un.S_addr = inet_addr(ip);
                 peer.sin_port = htons(1224);
 
 				int res = connect(sock, (sockaddr*)&peer, sizeof(peer));
 				static int d = 0;
 				char* s = "\\|/-";
 				if ( res == SOCKET_ERROR) {
-					printf("\rconnecting to 127.0.0.1:1224 %c", s[d]);
+					printf("\rconnecting to %s:1224 %c",ip, s[d]);
 					fflush(stdout);
 					closesocket(sock);
 					sock = -1;
@@ -365,7 +367,12 @@ void eventLoop()
 			if (msg = pickMsg()) {
 				//printf("send to server: %s:%d\n", msg->c_str(), msg->length());
 				auto str = formatWxMsg(*msg);
-				int sc = send(sock, str.c_str(), str.size(), 0);
+				unsigned short len = htons(str.size());
+				char * buff = new char[str.size() + 2];
+				*(unsigned short*)buff = len;
+				memcpy(buff + sizeof(len), str.data(), str.size());
+				int sc = send(sock, buff, str.size() + 2, 0);
+				delete[] buff;
                 if (sc < 0) {
 					closesocket(sock);
 					sock = -1;
