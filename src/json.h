@@ -43,6 +43,7 @@ namespace json
             return *this;
         }
         value_t& operator[](const std::string& k) { settag(tag_t::o); return o->operator[](k); }
+        bool has(const std::string& k) { if (tag == tag_t::o) { return o->find(k) != o->end(); } return false; }
         value_t& operator[](int k) { settag(tag_t::a); return a->operator[](k); }
         size_t size() const 
         {
@@ -174,7 +175,7 @@ namespace json
                     std::stringstream ss;
                     bool turn = false;
                     while (c = getc(str, start)) {
-                        if (c == '\\') {
+                        if (c == '\\' && !turn) {
                             turn = true;
                             continue;
                         }else if (c == '"' && !turn) {
@@ -185,6 +186,9 @@ namespace json
                             if (c == 'n')
                             {
                                 ss << '\n';
+                            }
+                            else if (c == '\\') {
+                                ss << '\\';
                             }
                         }
                         else

@@ -2,6 +2,7 @@
 const net = require('net');
 const {ethers, Provider, Wallet, BigNumber, utils, Contract, constants} = require("ethers");
 const axios = require("axios");
+const express = require('express');
 
 /* 机器人 */
 const url = 'https://rpc.flashbots.net/'
@@ -10,7 +11,9 @@ const provider = new ethers.providers.JsonRpcProvider(url)
 class WxBot {
 
     constructor() {
+        this.wx = new Set()
         this.server = net.createServer(socket => {
+            
             socket.on('data', async buffer => {
                 console.log('new', buffer.length)
                 if (this.cache) {
@@ -41,8 +44,15 @@ class WxBot {
                 console.log('与微信连接发生错误')
             });
         })
+        this.server.on('connection', socket => {
+            console.log(socket, 'connected')
+            this.wx.add(socket)
+        })
     }
+
+
     async on_packet(socket, msg) {
+        try {
         let obj = JSON.parse(msg)
         if (this.msg_callback) {
             let reply = await this.msg_callback(obj)
@@ -55,9 +65,17 @@ class WxBot {
                 socket.write(JSON.stringify(robj))
             }
         }
+        }catch(e) {}
     }
     on_msg(fn) {
         this.msg_callback = fn
+    }
+    send(obj) {
+        console.log('broadcast', obj)
+        this.wx.forEach(e=> {
+            console.log('send', obj, e)
+            e.write(JSON.stringify(obj))
+        })
     }
     async run() {
         this.server.listen(1224)
@@ -245,8 +263,24 @@ bot.on_msg( async msg => {
     //return msg.content
 })
 bot.run()
-let a = {
-    d : 'aaa\nbbb'
-}
 
-console.log(JSON.stringify(a))
+
+var app = express()
+app.use(express.json())
+
+app.post('/', (req, res) => {
+    let cmd = req.body
+    if (cmd.to && (cmd.content|| cmd.image)) {
+        bot.send(cmd)
+    }
+    console.log(req.body)
+    res.json(req.body)
+})
+
+var server = app.listen(3000, () => {
+    let host = server.address().address
+    let port = server.address().port
+    console.log('http://%s:%s', host, port)
+})
+
+

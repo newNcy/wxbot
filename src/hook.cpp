@@ -240,6 +240,37 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNo
 	delete[] buf;
 	delete[] buf2;
 } 
+
+void WINAPI sendImage(const std::wstring& wxid, const std::wstring& path)
+{
+	wstring id(wxid);
+	wstring file(path);
+	Entry _init_img = (Entry)rel2abs(0x7A78A0);
+	Entry _send_img = (Entry)rel2abs(0x55C1C0);
+	wstring null(1024);
+	const char* ecxvalue = "0R}QPJ}Qrecieve shakeapp msg";
+	char buff[1024] = {0};
+	char *buff2 = new char [4096]();
+	__asm {
+		pushad;
+		pushfd;
+		sub esp, 0x14;
+		lea eax, buff;
+		mov ecx, esp;
+		lea edi, file;
+		push eax;
+		call _init_img;
+		mov ecx, ecxvalue;
+		lea eax, id;
+		push edi;
+		push eax;
+		push buff2;
+		call _send_img;
+		popfd;
+		popad;
+	}
+}
+
 void sendText(const std::string& wxid, const std::string& text, std::vector<std::string> & notifyList)
 {
 	auto wid = string2wstring(wxid);
@@ -303,14 +334,26 @@ void handleCmd(const std::string & buff)
 {
 	json::value_t sendCmd;
 	sendCmd.fromstring(buff);
-	std::string & wxid = sendCmd["to"];
-	std::string & content = sendCmd["content"];
-	auto& notifyList = sendCmd["notify"];
-	std::vector<std::string> notify;
-	for (int i = 0; i < notifyList.size(); ++i) {
-		notify.push_back(notifyList[i]);
+	if (sendCmd.has("to")) {
+		std::string& wxid = sendCmd["to"];
+		if (sendCmd.has("content")) {
+			std::string& content = sendCmd["content"];
+			auto& notifyList = sendCmd["notify"];
+			std::vector<std::string> notify;
+			for (int i = 0; i < notifyList.size(); ++i) {
+				notify.push_back(notifyList[i]);
+			}
+			if (content.length()) {
+				sendText(wxid, content, notify);
+			}
+		}
+		
+		if (sendCmd.has("image")) {
+			std::string& image = sendCmd["image"];
+			sendImage(string2wstring(wxid), string2wstring(image));
+		}
 	}
-	sendText(wxid, content, notify);
+	
 }
 
 void eventLoop()
@@ -432,7 +475,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD e, LPVOID reserve)
 
 	//Call<void(const wchar_t*, const wchar_t*)> sendMsg(0x55C720);
 	//sendMsg(L"filehelper", L"hello world");
-
+	//sendImage(L"filehelper", L"C:\\Users\\ncy\\Desktop\\a.png");
     std::map<int, void*> table = {
         {0x6EA632, on_recv_msg},
     };

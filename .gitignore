@@ -1,2 +1,5 @@
 vs
 build
+src/js/node_modules
+src/js/package.json
+src/js/package-lock.json
