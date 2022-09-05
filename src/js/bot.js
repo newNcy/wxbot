@@ -226,7 +226,7 @@ bot.on_msg( async msg => {
                 have_erc20 = true
                 reply += `${s[i]} - ${ps[i]} ${t}`
                 if (i < ps.length -1) {
-                    reply += '\\n'
+                    reply += '\n'
                 }
             }
             }catch(e) {}
@@ -238,13 +238,13 @@ bot.on_msg( async msg => {
                         let n = ns[i]
                         if (!n || n.error) continue;
                         if (f && needs) {
-                            reply += '\\n------------------\\n'
+                            reply += '\n------------------\n'
                             f = false
                         }
                         have_erc721 = true
-                        reply += `${s[i]}\\n-floor : Ξ${Number(n.floor_price).toFixed(4)}\\n-holder : ${n.num_owners}\\n-total : ${n.count}\\n-24h sales : ${n.one_day_sales}`
+                        reply += `${s[i]}\n-floor : Ξ${Number(n.floor_price).toFixed(4)}\n-holder : ${n.num_owners}\n-total : ${n.count}\n-24h sales : ${n.one_day_sales}`
                         if (i < ns.length -1) {
-                            reply += '\\n'
+                            reply += '\n'
                         }
 
                     }
