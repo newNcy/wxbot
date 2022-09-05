@@ -3,6 +3,7 @@ const net = require('net');
 const {ethers, Provider, Wallet, BigNumber, utils, Contract, constants} = require("ethers");
 const axios = require("axios");
 const express = require('express');
+const sqlite = require('./data.js')
 
 /* 机器人 */
 const url = 'https://rpc.flashbots.net/'
@@ -169,7 +170,98 @@ async function fetch_erc721_list(ss, t) {
 }
 
 
+async function do_alias(sender, s) {
+    let data = await sqlite.load('bot.db')
+    let res = []
+    if (data.alias) {
+        for (var i in s) {
+            let v = s[i]
+            let e = data.alias.find(e => e.user == sender && e.name == v)
+            if (e) {
+               res.push(e.value)
+            } else {
+                res.push(v)
+            }
+        }
+    }
+    return res
+}
 
+async function handle_query(sender, s, t, full_cmd) {
+    let reply = ''
+    let needs = false
+    let have_erc20 = false
+    let have_erc721 = false
+    s = await do_alias(sender, s)
+    console.log(s)
+    try {
+        let ps = await fetch_erc20_list(s, t)
+        for (var i in ps) {
+            if (!ps[i]) continue;
+            needs = true
+            have_erc20 = true
+            reply += `${s[i]} - ${ps[i]} ${t}`
+            if (i < ps.length -1) {
+                reply += '\n'
+            }
+        }
+    }catch(e) {}
+    try {
+        let ns = await fetch_erc721_list(s, t)
+        let f = true
+        if (ns.length > 0) {
+            for (var i in ns) {
+                let n = ns[i]
+                if (!n || n.error) continue;
+                if (f && needs) {
+                    reply += '\n------------------\n'
+                    f = false
+                }
+                have_erc721 = true
+                reply += `${s[i]}\n-floor : Ξ${Number(n.floor_price).toFixed(4)}\n-holder : ${n.num_owners}\n-total : ${n.count}\n-24h sales : ${n.one_day_sales}`
+                if (i < ns.length -1) {
+                    reply += '\n'
+                }
+
+            }
+        }
+    }catch(e) {
+        console.log(e)
+    }
+
+    if (!have_erc20 && !have_erc721) {
+        return `没找到任何跟 ${full_cmd} 有关的信息`
+    }
+    return reply
+}
+
+async function handle_alias(sender, args) {
+    let data = await sqlite.load('bot.db')
+    if (args.length == 0) {
+        alias.map(e => {
+            if (e.user == sender) {
+                sender_alias.push(e)
+            }
+        })
+    } else if (args.length == 2) {
+        let o = {user : sender, name : args[0], value:args[1]}
+        if (!data.alias) {
+            data.alias = [o]
+        } else {
+            let idx = data.alias.findIndex(e=> e.user == sender && e.name == args[0])
+            if (idx > 0) {
+                data.alias[idx].value = args[1]
+            } else {
+                data.alias.push(o)
+            }
+            await sqlite.save(data, 'bot.db')
+        }
+        return `已将 ${args[0]} 映射为 ${args[1]}`
+    }
+
+    db.close()
+    return ''
+}
 
 let bot = new WxBot()
 bot.on_msg( async msg => {
@@ -195,6 +287,7 @@ bot.on_msg( async msg => {
     let segs = full_cmd.split(' ')
     let cmd = segs[0]
     let args = segs.slice(1)
+    let sender = msg.member ? msg.member : msg.source
     if (is_cmd) {
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
@@ -205,7 +298,9 @@ bot.on_msg( async msg => {
             }
             return `${args[0]} 时提醒你-${args[1]}`
         }else if (cmd == 'menu') {
-            return '/gas \\n/<token>'
+            return '/gas \n/<token>'
+        }else if (cmd == 'alias') {
+            return handle_alias(sender, args)
         }else {
             let ts = full_cmd.split('>')
             let s = ts[0].split(':')
@@ -214,48 +309,7 @@ bot.on_msg( async msg => {
                 t = ts[1]
             }
 
-            let reply = ''
-            let needs = false
-            let have_erc20 = false
-            let have_erc721 = false
-            try {
-            let ps = await fetch_erc20_list(s, t)
-            for (var i in ps) {
-                if (!ps[i]) continue;
-                needs = true
-                have_erc20 = true
-                reply += `${s[i]} - ${ps[i]} ${t}`
-                if (i < ps.length -1) {
-                    reply += '\n'
-                }
-            }
-            }catch(e) {}
-            try {
-            let ns = await fetch_erc721_list(s, t)
-                let f = true
-                if (ns.length > 0) {
-                    for (var i in ns) {
-                        let n = ns[i]
-                        if (!n || n.error) continue;
-                        if (f && needs) {
-                            reply += '\n------------------\n'
-                            f = false
-                        }
-                        have_erc721 = true
-                        reply += `${s[i]}\n-floor : Ξ${Number(n.floor_price).toFixed(4)}\n-holder : ${n.num_owners}\n-total : ${n.count}\n-24h sales : ${n.one_day_sales}`
-                        if (i < ns.length -1) {
-                            reply += '\n'
-                        }
-
-                    }
-                }
-            }catch(e) {
-                console.log(e)
-            }
-
-            if (!have_erc20 && !have_erc721) {
-                return `没找到任何跟 ${full_cmd} 有关的信息`
-            }
+            let reply = await handle_query(sender, s, t, full_cmd)
 
             return reply
         }
