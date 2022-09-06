@@ -53,9 +53,10 @@ class WxBot {
 
 
     async on_packet(socket, msg) {
+        msg = msg.split('\\n').join('')
         try {
-        let obj = JSON.parse(msg)
-        if (this.msg_callback) {
+            let obj = JSON.parse(msg)
+            if (this.msg_callback) {
             let reply = await this.msg_callback(obj)
             if (reply != null) {
                 let robj = {
@@ -66,7 +67,9 @@ class WxBot {
                 socket.write(JSON.stringify(robj))
             }
         }
-        }catch(e) {}
+        }catch(e) {
+            console.log(e, msg)
+        }
     }
     on_msg(fn) {
         this.msg_callback = fn
@@ -336,5 +339,3 @@ var server = app.listen(3000, () => {
     let port = server.address().port
     console.log('http://%s:%s', host, port)
 })
-
-

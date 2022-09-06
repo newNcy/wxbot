@@ -106,6 +106,15 @@ namespace json
                         ss<<'n';
                         continue;
                     }
+                    else if (c == '\r') {
+                        ss << '\\';
+                        ss << 'r';
+                        continue;
+                    } else if (c == '\t') {
+                        ss << '\\';
+                        ss << 't';
+                        continue;
+                    } 
                     ss << c;
                 }
                 ss << '"';

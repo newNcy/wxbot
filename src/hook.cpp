@@ -377,8 +377,8 @@ void eventLoop()
                 //ioctlsocket(sock, FIONBIO, &opt);
 
                 sockaddr_in peer;
-				const char* ip = "47.251.18.70";
-				//const char* ip = "127.0.0.1";
+				//const char* ip = "47.251.18.70";
+				const char* ip = "127.0.0.1";
                 memset(&peer, 0, sizeof(peer));
                 peer.sin_family = AF_INET;
                 peer.sin_addr.S_un.S_addr = inet_addr(ip);
