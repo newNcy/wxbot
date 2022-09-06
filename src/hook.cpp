@@ -245,30 +245,29 @@ void WINAPI sendImage(const std::wstring& wxid, const std::wstring& path)
 {
 	wstring id(wxid);
 	wstring file(path);
+	using Getstr = wstring * (*)();
+	Getstr getstr = (Getstr)rel2abs(0xE37F0);
 	Entry _init_img = (Entry)rel2abs(0x7A78A0);
 	Entry _send_img = (Entry)rel2abs(0x55C1C0);
-	wstring null(1024);
-	const char* ecxvalue = "0R}QPJ}Qrecieve shakeapp msg";
-	char buff[1024] = {0};
+	wstring* str = getstr();
+	
+	char * buff = new char[1024]();
 	char *buff2 = new char [4096]();
 	__asm {
-		pushad;
-		pushfd;
 		sub esp, 0x14;
-		lea eax, buff;
 		mov ecx, esp;
 		lea edi, file;
-		push eax;
+		push buff;
 		call _init_img;
-		mov ecx, ecxvalue;
+		mov ecx, str;
 		lea eax, id;
 		push edi;
 		push eax;
 		push buff2;
 		call _send_img;
-		popfd;
-		popad;
 	}
+	delete[] buff;
+	delete[] buff2;
 }
 
 void sendText(const std::string& wxid, const std::string& text, std::vector<std::string> & notifyList)
