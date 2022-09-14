@@ -4,6 +4,7 @@ const {ethers, Provider, Wallet, BigNumber, utils, Contract, constants} = requir
 const axios = require("axios");
 const express = require('express');
 const sqlite = require('./data.js')
+const mt = require('moment-timezone')
 
 /* 机器人 */
 const url = 'https://rpc.flashbots.net/'
@@ -187,6 +188,7 @@ async function do_alias(sender, s) {
             }
         }
     }
+    await sqlite.save(data, 'bot.db')
     return res
 }
 
@@ -197,6 +199,7 @@ async function handle_query(sender, s, t, full_cmd) {
     let have_erc721 = false
     s = await do_alias(sender, s)
     console.log(s)
+    let sp = '\n------------------\n'
     try {
         let ps = await fetch_erc20_list(s, t)
         for (var i in ps) {
@@ -208,7 +211,9 @@ async function handle_query(sender, s, t, full_cmd) {
                 reply += '\n'
             }
         }
-    }catch(e) {}
+    }catch(e) {
+        console.log(e)
+    }
     try {
         let ns = await fetch_erc721_list(s, t)
         let f = true
@@ -217,13 +222,13 @@ async function handle_query(sender, s, t, full_cmd) {
                 let n = ns[i]
                 if (!n || n.error) continue;
                 if (f && needs) {
-                    reply += '\n------------------\n'
+                    reply += sp
                     f = false
                 }
                 have_erc721 = true
-                reply += `${s[i]}\n-floor : Ξ${Number(n.floor_price).toFixed(4)}\n-holder : ${n.num_owners}\n-total : ${n.count}\n-24h sales : ${n.one_day_sales}`
+                reply += `${s[i]}\n地板：${Number(n.floor_price).toFixed(4)}Ξ\n总数：${n.count}\n持有人数：${n.num_owners}\n日成交量：${n.one_day_sales}`
                 if (i < ns.length -1) {
-                    reply += '\n'
+                    reply += sp
                 }
 
             }
@@ -252,7 +257,7 @@ async function handle_alias(sender, args) {
             data.alias = [o]
         } else {
             let idx = data.alias.findIndex(e=> e.user == sender && e.name == args[0])
-            if (idx > 0) {
+            if (idx >= 0) {
                 data.alias[idx].value = args[1]
             } else {
                 data.alias.push(o)
@@ -262,8 +267,11 @@ async function handle_alias(sender, args) {
         return `已将 ${args[0]} 映射为 ${args[1]}`
     }
 
-    db.close()
     return ''
+}
+
+function is_tz(tz) {
+    return mt().tz(tz).utcOffset() != mt().utcOffset()
 }
 
 let bot = new WxBot()
@@ -280,6 +288,22 @@ bot.on_msg( async msg => {
         }catch (e) {
             console.log(e)
         }
+    }
+    if (msg.source.endsWith('@chatroom')) {
+        let data = await sqlite.load('bot.db')
+        let row = { wxid : msg.source }
+        if (!data.chatrooms) {
+            data.chatrooms = [row]
+        } else {
+            if (data.chatrooms.findIndex( e=> e.wxid == msg.source) < 0) {
+                data.chatrooms.push(row)
+            }
+        }
+        await sqlite.save(data, 'bot.db')
+    }
+
+    if (msg.source != '21161026002@chatroom') {
+        return
     }
     let text = msg.content
     if (text.startsWith('@chain-bot')) {
@@ -334,8 +358,24 @@ app.post('/', (req, res) => {
     res.json(req.body)
 })
 
+app.get('/chatrooms', async (req, res) => {
+    let data = await sqlite.load('bot.db')
+    res.json(data.chatrooms)
+    await sqlite.save(data, 'bot.db')
+})
+
 var server = app.listen(3000, () => {
     let host = server.address().address
     let port = server.address().port
     console.log('http://%s:%s', host, port)
 })
+
+for (var c of mt.tz.countries()) {
+    for (var tz of mt.tz.zonesForCountry(c)) {
+        console.log(tz)
+    }
+}
+
+console.log(mt.tz.names())
+
+
