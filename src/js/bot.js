@@ -10,6 +10,7 @@ const mt = require('moment-timezone')
 const url = 'https://rpc.flashbots.net/'
 const provider = new ethers.providers.JsonRpcProvider(url)
 
+
 class WxBot {
 
     constructor() {
@@ -47,7 +48,7 @@ class WxBot {
             });
         })
         this.server.on('connection', socket => {
-            console.log(socket, 'connected')
+            console.log('connected')
             this.wx.add(socket)
         })
     }
@@ -78,7 +79,6 @@ class WxBot {
     send(obj) {
         console.log('broadcast', obj)
         this.wx.forEach(e=> {
-            console.log('send', obj, e)
             e.write(JSON.stringify(obj))
         })
     }
@@ -89,6 +89,7 @@ class WxBot {
 
 
 
+let data = {}
 
 async function collection_stats(slug) {
     try {
@@ -175,20 +176,22 @@ async function fetch_erc721_list(ss, t) {
 
 
 async function do_alias(sender, s) {
-    let data = await sqlite.load('bot.db')
     let res = []
     if (data.alias) {
         for (var i in s) {
             let v = s[i]
-            let e = data.alias.find(e => e.user == sender && e.name == v)
+            let e = data.alias.find(e => e.user == sender && e.name == v && e.value.length > 0)
             if (e) {
+                console.log(v, '->', e.value)
                res.push(e.value)
             } else {
+                console.log(v, '->', v)
                 res.push(v)
             }
         }
+    } else {
+        return s
     }
-    await sqlite.save(data, 'bot.db')
     return res
 }
 
@@ -244,7 +247,6 @@ async function handle_query(sender, s, t, full_cmd) {
 }
 
 async function handle_alias(sender, args) {
-    let data = await sqlite.load('bot.db')
     if (args.length == 0) {
         alias.map(e => {
             if (e.user == sender) {
@@ -262,7 +264,6 @@ async function handle_alias(sender, args) {
             } else {
                 data.alias.push(o)
             }
-            await sqlite.save(data, 'bot.db')
         }
         return `已将 ${args[0]} 映射为 ${args[1]}`
     }
@@ -290,7 +291,6 @@ bot.on_msg( async msg => {
         }
     }
     if (msg.source.endsWith('@chatroom')) {
-        let data = await sqlite.load('bot.db')
         let row = { wxid : msg.source }
         if (!data.chatrooms) {
             data.chatrooms = [row]
@@ -299,12 +299,8 @@ bot.on_msg( async msg => {
                 data.chatrooms.push(row)
             }
         }
-        await sqlite.save(data, 'bot.db')
     }
 
-    if (msg.source != '21161026002@chatroom') {
-        return
-    }
     let text = msg.content
     if (text.startsWith('@chain-bot')) {
         return "嗯"
@@ -343,13 +339,13 @@ bot.on_msg( async msg => {
     }
     //return msg.content
 })
-bot.run()
+
 
 
 var app = express()
 app.use(express.json())
 
-app.post('/', (req, res) => {
+app.post('/send', (req, res) => {
     let cmd = req.body
     if (cmd.to && (cmd.content|| cmd.image)) {
         bot.send(cmd)
@@ -358,24 +354,44 @@ app.post('/', (req, res) => {
     res.json(req.body)
 })
 
-app.get('/chatrooms', async (req, res) => {
-    let data = await sqlite.load('bot.db')
-    res.json(data.chatrooms)
-    await sqlite.save(data, 'bot.db')
-})
-
-var server = app.listen(3000, () => {
-    let host = server.address().address
-    let port = server.address().port
-    console.log('http://%s:%s', host, port)
-})
-
-for (var c of mt.tz.countries()) {
-    for (var tz of mt.tz.zonesForCountry(c)) {
-        console.log(tz)
-    }
+async function sleep(ms) {
+    return new Promise(r=>{ setInterval(r, ms)})
 }
 
-console.log(mt.tz.names())
+app.post('/broadcast', async (req, res) => {
+    let msg = req.body
+    if (data.chatrooms && (msg.content || msg.image)) {
+        for (var room of data.chatrooms) {
+            console.log('broadcast to', room)
+            msg.to = room.wxid
+            bot.send(msg)
+            await sleep(5*1000)
+        }
+        res.send('ok')
+    }
+    res.send('failed')
+})
 
+app.get('/chatrooms', async (req, res) => {
+    res.json(data.chatrooms)
+})
+
+
+async function main () {
+    data = await sqlite.load('bot.db')
+    console.log('load data ...', data)
+    bot.run()
+    var server = app.listen(3000, () => {
+        let host = server.address().address
+        let port = server.address().port
+        console.log('http://%s:%s', host, port)
+    })
+
+    process.on('SIGINT', async () => {
+        console.log('save data...', data)
+        await sqlite.save(data, 'bot.db')
+        process.exit()
+    })
+}
+main()
 
