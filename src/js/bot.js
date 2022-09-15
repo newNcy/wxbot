@@ -336,7 +336,7 @@ bot.on_msg( async msg => {
                 let om = mt(m,formats)
                 let lm = mt.unix(om.tz(cmd, true).unix())
 
-                return `${cmd}时间\n${t(om)}\n北京时间\n${t(lm)})`
+                return `${cmd}时间\n${t(om)}\n北京时间\n${t(lm)}`
             }
         }else if (cmd == 'remind') {
             if (args.length !=2) {
