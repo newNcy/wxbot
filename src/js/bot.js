@@ -275,6 +275,10 @@ function is_tz(tz) {
     return mt().tz(tz).utcOffset() != mt().utcOffset()
 }
 
+function t(m) {
+    return m.format('YYYY-MM-DD HH:mm:ss')
+}
+
 let bot = new WxBot()
 bot.on_msg( async msg => {
     console.log(msg)
@@ -306,16 +310,35 @@ bot.on_msg( async msg => {
         return "嗯"
     }
     let is_cmd = text.startsWith('/')
-    let full_cmd = text.substr(1).trim()
+    let full_cmd = text.substr(1).trim().toLowerCase()
     let segs = full_cmd.split(' ')
     let cmd = segs[0]
     let args = segs.slice(1)
     let sender = msg.member ? msg.member : msg.source
+    let reply = ''
+    let formats = [
+        'HH:mm',
+        'HH:mm:ss',
+        'YYYY-MM-DD',
+        'YYYY-MM-DD HH:mm',
+        'YYYY-MM-DD HH:mm:ss',
+    ]
     if (is_cmd) {
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
-            return Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
-        } else if (cmd == 'remind') {
+            reply = Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
+        } else if (mt.tz.zone(cmd)) {
+            if (args.length == 0) {
+                return `${cmd}时间 \n${mt().tz(cmd).format('YYYY-MM-DD HH:mm:ss')}`
+            }else {
+                let z = mt.tz.zone(cmd)
+                let m = args.join(' ')
+                let om = mt(m,formats)
+                let lm = mt.unix(om.tz(cmd, true).unix())
+
+                return `${cmd}时间\n${t(om)}\n北京时间\n${t(lm)})`
+            }
+        }else if (cmd == 'remind') {
             if (args.length !=2) {
                 return '/remind 时间 备忘'
             }
@@ -336,6 +359,8 @@ bot.on_msg( async msg => {
 
             return reply
         }
+
+        return reply
     }
     //return msg.content
 })
@@ -378,8 +403,23 @@ app.get('/chatrooms', async (req, res) => {
 
 
 async function main () {
+    let abbr2offset = {}
+    for (var c of mt.tz.countries()) {
+        for (var e of mt.tz.zonesForCountry(c)) {
+            e = mt.tz.zone(e)
+            if (e) {
+                for (var i in e.abbrs) {
+                    abbr2offset[e.abbrs[i].toLowerCase()] = e
+                }
+            }
+        }
+    }
+
+    console.log(abbr2offset)
+
     data = await sqlite.load('bot.db')
     console.log('load data ...', data)
+    data.abbr2offset = abbr2offset
     bot.run()
     var server = app.listen(3000, () => {
         let host = server.address().address
@@ -388,10 +428,15 @@ async function main () {
     })
 
     process.on('SIGINT', async () => {
+        data.abbr2offset = null
         console.log('save data...', data)
         await sqlite.save(data, 'bot.db')
         process.exit()
     })
 }
 main()
+
+
+
+
 
