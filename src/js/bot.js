@@ -385,16 +385,18 @@ async function sleep(ms) {
 
 app.post('/broadcast', async (req, res) => {
     let msg = req.body
+    try {
     if (data.chatrooms && (msg.content || msg.image)) {
         for (var room of data.chatrooms) {
             console.log('broadcast to', room)
             msg.to = room.wxid
             bot.send(msg)
-            await sleep(5*1000)
+            await sleep(60*1000)
         }
         res.send('ok')
     }
     res.send('failed')
+    }catch(e) {}
 })
 
 app.get('/chatrooms', async (req, res) => {
@@ -404,17 +406,6 @@ app.get('/chatrooms', async (req, res) => {
 
 async function main () {
     let abbr2offset = {}
-    for (var c of mt.tz.countries()) {
-        for (var e of mt.tz.zonesForCountry(c)) {
-            e = mt.tz.zone(e)
-            if (e) {
-                for (var i in e.abbrs) {
-                    abbr2offset[e.abbrs[i].toLowerCase()] = e
-                }
-            }
-        }
-    }
-
     console.log(abbr2offset)
 
     data = await sqlite.load('bot.db')
