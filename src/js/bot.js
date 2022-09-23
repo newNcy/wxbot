@@ -3,8 +3,9 @@ const net = require('net');
 const {ethers, Provider, Wallet, BigNumber, utils, Contract, constants} = require("ethers");
 const axios = require("axios");
 const express = require('express');
-const sqlite = require('./data.js')
-const mt = require('moment-timezone')
+const data_path = './data/'
+const sqlite = require(data_path+'data.js')
+axios.defaults.timeout = 3000
 
 /* 机器人 */
 const url = 'https://rpc.flashbots.net/'
@@ -224,6 +225,7 @@ async function handle_query(sender, s, t, full_cmd) {
             for (var i in ns) {
                 let n = ns[i]
                 if (!n || n.error) continue;
+                if (n.seven_day_sales ==0) continue;
                 if (f && needs) {
                     reply += sp
                     f = false
@@ -271,13 +273,6 @@ async function handle_alias(sender, args) {
     return ''
 }
 
-function is_tz(tz) {
-    return mt().tz(tz).utcOffset() != mt().utcOffset()
-}
-
-function t(m) {
-    return m.format('YYYY-MM-DD HH:mm:ss')
-}
 
 let bot = new WxBot()
 bot.on_msg( async msg => {
@@ -327,7 +322,7 @@ bot.on_msg( async msg => {
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
             reply = Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
-        } else if (mt.tz.zone(cmd)) {
+        } /*else if (mt.tz.zone(cmd)) {
             if (args.length == 0) {
                 return `${cmd}时间 \n${mt().tz(cmd).format('YYYY-MM-DD HH:mm:ss')}`
             }else {
@@ -338,7 +333,7 @@ bot.on_msg( async msg => {
 
                 return `${cmd}时间\n${t(om)}\n北京时间\n${t(lm)}`
             }
-        }else if (cmd == 'remind') {
+        }*/ else if (cmd == 'remind') {
             if (args.length !=2) {
                 return '/remind 时间 备忘'
             }
@@ -408,7 +403,7 @@ async function main () {
     let abbr2offset = {}
     console.log(abbr2offset)
 
-    data = await sqlite.load('bot.db')
+    data = await sqlite.load(data_path+'bot.db')
     console.log('load data ...', data)
     data.abbr2offset = abbr2offset
     bot.run()
@@ -421,7 +416,7 @@ async function main () {
     process.on('SIGINT', async () => {
         data.abbr2offset = null
         console.log('save data...', data)
-        await sqlite.save(data, 'bot.db')
+        await sqlite.save(data, data_path+'bot.db')
         process.exit()
     })
 }

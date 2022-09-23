@@ -179,6 +179,7 @@ struct wstring
 	wchar_t* data;
 	int len;
 	int cap;
+	int _1 = 0, _2 = 0;
 	wstring():data(0), len(0),cap(0) {}
 	wstring(const std::wstring& w)
 	{
@@ -222,7 +223,6 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNo
 	wstring id(wxid);
 	wstring content(text);
 	Entry remote_fn = (Entry)rel2abs(0x55C720);
-	char* buf = new char[2048]();
 	char* buf2 = new char[2048]();
 	__asm {
 		push 0;
@@ -237,7 +237,6 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNo
 		call remote_fn;
 		add esp, 20;
 	}
-	delete[] buf;
 	delete[] buf2;
 } 
 
