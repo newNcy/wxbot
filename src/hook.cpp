@@ -179,6 +179,7 @@ struct wstring
 	wchar_t* data;
 	int len;
 	int cap;
+	int _1 = 0, _2 = 0;
 	wstring():data(0), len(0),cap(0) {}
 	wstring(const std::wstring& w)
 	{

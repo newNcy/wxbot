@@ -3,8 +3,10 @@ const net = require('net');
 const {ethers, Provider, Wallet, BigNumber, utils, Contract, constants} = require("ethers");
 const axios = require("axios");
 const express = require('express');
-const sqlite = require('./data.js')
+const data_path = './data/'
+const sqlite = require(data_path + 'data.js')
 const mt = require('moment-timezone')
+axios.defaults.timeout = 5 * 1000; 
 
 /* 机器人 */
 const url = 'https://rpc.flashbots.net/'
@@ -224,6 +226,7 @@ async function handle_query(sender, s, t, full_cmd) {
             for (var i in ns) {
                 let n = ns[i]
                 if (!n || n.error) continue;
+                if (n.seven_day_sales == 0) continue;
                 if (f && needs) {
                     reply += sp
                     f = false
@@ -408,7 +411,7 @@ async function main () {
     let abbr2offset = {}
     console.log(abbr2offset)
 
-    data = await sqlite.load('bot.db')
+    data = await sqlite.load(data_path +'bot.db')
     console.log('load data ...', data)
     data.abbr2offset = abbr2offset
     bot.run()
@@ -421,7 +424,7 @@ async function main () {
     process.on('SIGINT', async () => {
         data.abbr2offset = null
         console.log('save data...', data)
-        await sqlite.save(data, 'bot.db')
+        await sqlite.save(data, data_path +'bot.db')
         process.exit()
     })
 }
