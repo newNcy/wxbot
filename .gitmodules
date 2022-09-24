@@ -1,6 +1,3 @@
-[submodule "data"]
-	path = src/js/data
-	url = git@nftpocket.top:data
 [submodule "src/js/data"]
 	path = src/js/data
 	url = git@nftpocket.top:data

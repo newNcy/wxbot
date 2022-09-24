@@ -226,7 +226,11 @@ async function handle_query(sender, s, t, full_cmd) {
             for (var i in ns) {
                 let n = ns[i]
                 if (!n || n.error) continue;
+<<<<<<< HEAD
                 if (n.seven_day_sales == 0) continue;
+=======
+                if (n.seven_day_sales ==0) continue;
+>>>>>>> a0d920245d82937892d4799d56368544ffa675c0
                 if (f && needs) {
                     reply += sp
                     f = false
@@ -274,13 +278,6 @@ async function handle_alias(sender, args) {
     return ''
 }
 
-function is_tz(tz) {
-    return mt().tz(tz).utcOffset() != mt().utcOffset()
-}
-
-function t(m) {
-    return m.format('YYYY-MM-DD HH:mm:ss')
-}
 
 let bot = new WxBot()
 bot.on_msg( async msg => {
@@ -330,7 +327,7 @@ bot.on_msg( async msg => {
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
             reply = Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
-        } else if (mt.tz.zone(cmd)) {
+        } /*else if (mt.tz.zone(cmd)) {
             if (args.length == 0) {
                 return `${cmd}时间 \n${mt().tz(cmd).format('YYYY-MM-DD HH:mm:ss')}`
             }else {
@@ -341,7 +338,7 @@ bot.on_msg( async msg => {
 
                 return `${cmd}时间\n${t(om)}\n北京时间\n${t(lm)}`
             }
-        }else if (cmd == 'remind') {
+        }*/ else if (cmd == 'remind') {
             if (args.length !=2) {
                 return '/remind 时间 备忘'
             }

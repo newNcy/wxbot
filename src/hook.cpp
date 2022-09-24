@@ -223,7 +223,6 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNo
 	wstring id(wxid);
 	wstring content(text);
 	Entry remote_fn = (Entry)rel2abs(0x55C720);
-	char* buf = new char[2048]();
 	char* buf2 = new char[2048]();
 	__asm {
 		push 0;
@@ -238,7 +237,6 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNo
 		call remote_fn;
 		add esp, 20;
 	}
-	delete[] buf;
 	delete[] buf2;
 } 
 
