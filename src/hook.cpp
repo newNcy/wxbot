@@ -238,7 +238,7 @@ void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, cons
 		call remote_fn;
 		add esp, 20;
 	}
-	delete[] buff;
+	delete[] buf;
 } 
 void sendText(const std::string& wxid, const std::string& text, std::vector<std::string>& notifyList)
 {

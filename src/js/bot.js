@@ -7,6 +7,7 @@ const express = require('express');
 const data_path = './data/'
 const sqlite = require(data_path+'data.js')
 const tw = require(data_path +'tw.js')
+const Path = require('path') 
 
 axios.defaults.timeout = 3000
 
@@ -280,6 +281,8 @@ async function handle_alias(sender, args) {
 let bot = new WxBot()
 bot.on_msg( async msg => {
     console.log(msg)
+
+    return
     if (msg.source == '23091413147@chatroom' || msg.source == '4610303176@chatroom') {
         let c26 = 'https://bot.https.sh/callback'
         try {
@@ -382,19 +385,24 @@ async function sleep(ms) {
     return new Promise(r=>{ setInterval(r, ms)})
 }
 
+async function broadcast(msg)
+{
+    for (var room of data.chatrooms) {
+        console.log('broadcast to', room)
+        msg.to = room.wxid
+        bot.send(msg)
+        await sleep(10*1000)
+    }
+}
+
 app.post('/broadcast', async (req, res) => {
     let msg = req.body
     try {
-    if (data.chatrooms && (msg.content || msg.image)) {
-        for (var room of data.chatrooms) {
-            console.log('broadcast to', room)
-            msg.to = room.wxid
-            bot.send(msg)
-            await sleep(60*1000)
+        if (data.chatrooms && (msg.content || msg.image)) {
+            broadcast(msg)
+            res.send('ok')
         }
-        res.send('ok')
-    }
-    res.send('failed')
+        res.send('failed')
     }catch(e) {}
 })
 
@@ -404,26 +412,44 @@ app.get('/chatrooms', async (req, res) => {
 
 
 /* twitter 同步 */
-async function download_image(url, path) {
-    const res = await axios.get(url, {
-        responseType : 'arrayBuffer'
-    });
-    fs.writeFileSync(path, res.data)
+async function download_image(url, name) {
+  const path = Path.resolve(__dirname, name)
+  const writer = fs.createWriteStream(path)
+
+  const response = await axios({
+    url,
+    method: 'GET',
+    responseType: 'stream'
+  })
+
+  response.data.pipe(writer)
+
+  return new Promise((resolve, reject) => {
+    writer.on('finish', resolve)
+    writer.on('error', reject)
+  })
 }
 
 
 async function on_utopia_tweet(e) {
-    let msg = {}
+    let to = '21161026002@chatroom'
+
     let text = e.data.text
     let start = text.indexOf('@utopia_giveaway')
     text = text.substr(0, start)
 
     let idx = 0;
+    let msg = { content : text }
     for (var m of e.includes.media) {
         if (m.type == 'photo') {
-            await download_image(m.url, `${idx++}.jpg`)
+            let img = `${idx++}.jpg`
+            let image = process.cwd() + '\\' + img
+            await download_image(m.url, img)
+            msg.image = image
         }
     }
+
+    broadcast(msg)
 }
 
 
@@ -434,11 +460,10 @@ async function main () {
         }
     ]
 
-    //tw.feed_tweets(rules, on_utopia_tweet)
+    tw.feed_tweets(rules, on_utopia_tweet)
 
-    data = await sqlite.load(data_path+'bot.db')
+    data = await sqlite.load(data_path +'bot.db')
     console.log('load data ...', data)
-    data.abbr2offset = abbr2offset
     bot.run()
     var server = app.listen(3000, () => {
         let host = server.address().address
@@ -449,7 +474,7 @@ async function main () {
     process.on('SIGINT', async () => {
         data.abbr2offset = null
         console.log('save data...', data)
-        await sqlite.save(data, data_path+'bot.db')
+        await sqlite.save(data, data_path +'bot.db')
         process.exit()
     })
 }
