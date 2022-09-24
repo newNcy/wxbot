@@ -218,28 +218,43 @@ struct WxNotify
 std::queue<std::shared_ptr<WxMsg>> msgs;
 std::mutex mtx;
 
-void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, WxNotify * notify)
+void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, const WxNotify & notify)
 {
 	wstring id(wxid);
 	wstring content(text);
 	Entry remote_fn = (Entry)rel2abs(0x55C720);
-	char* buf2 = new char[2048]();
+	char * buf = new char[2048]();
 	__asm {
 		push 0;
 		push 0;
 		push 1;
-		push notify;
+		lea eax, notify;
+		push eax;
 		lea edi, content;
 		push edi;	
 
-		mov ecx, buf2;
 		lea edx, id;
+		mov ecx, buf;
 		call remote_fn;
 		add esp, 20;
 	}
-	delete[] buf2;
+	delete[] buff;
 } 
-
+void sendText(const std::string& wxid, const std::string& text, std::vector<std::string>& notifyList)
+{
+	auto wid = string2wstring(wxid);
+	auto wtext = string2wstring(text);
+	WxNotify notify = { 0, 0, 0 };
+	if (!notifyList.empty()) {
+		notify.start = new wstring[notifyList.size() + 1];
+		int count = 0;
+		for (auto& wxid : notifyList) {
+			notify.start[count++] = string2wstring(wxid);
+		}
+		notify.end1 = notify.end2 = notify.start + count;
+	}
+	sendText(wid, wtext, notify);
+}
 void WINAPI sendImage(const std::wstring& wxid, const std::wstring& path)
 {
 	wstring id(wxid);
@@ -269,21 +284,7 @@ void WINAPI sendImage(const std::wstring& wxid, const std::wstring& path)
 	delete[] buff2;
 }
 
-void sendText(const std::string& wxid, const std::string& text, std::vector<std::string> & notifyList)
-{
-	auto wid = string2wstring(wxid);
-	auto wtext = string2wstring(text);
-	WxNotify notify = { 0, 0, 0 };
-	if (!notifyList.empty()) {
-		notify.start = new wstring[notifyList.size() + 1];
-        int count = 0;
-		for (auto& wxid : notifyList) {
-			notify.start[count++] = string2wstring(wxid);
-		}
-		notify.end1 = notify.end2 = notify.start + count;
-	}
-	sendText(wid, wtext, &notify);
-}
+
 
 void on_recv_msg(int eax, int ecx, int edx, int ebx, int esi, char* edi)
 {

@@ -2,9 +2,12 @@
 const net = require('net');
 const {ethers, Provider, Wallet, BigNumber, utils, Contract, constants} = require("ethers");
 const axios = require("axios");
+const fs = require("fs");
 const express = require('express');
 const data_path = './data/'
 const sqlite = require(data_path+'data.js')
+const tw = require(data_path +'tw.js')
+
 axios.defaults.timeout = 3000
 
 /* 机器人 */
@@ -362,6 +365,7 @@ bot.on_msg( async msg => {
 
 
 
+/* 网页控制 */
 var app = express()
 app.use(express.json())
 
@@ -399,9 +403,38 @@ app.get('/chatrooms', async (req, res) => {
 })
 
 
+/* twitter 同步 */
+async function download_image(url, path) {
+    const res = await axios.get(url, {
+        responseType : 'arrayBuffer'
+    });
+    fs.writeFileSync(path, res.data)
+}
+
+
+async function on_utopia_tweet(e) {
+    let msg = {}
+    let text = e.data.text
+    let start = text.indexOf('@utopia_giveaway')
+    text = text.substr(0, start)
+
+    let idx = 0;
+    for (var m of e.includes.media) {
+        if (m.type == 'photo') {
+            await download_image(m.url, `${idx++}.jpg`)
+        }
+    }
+}
+
+
 async function main () {
-    let abbr2offset = {}
-    console.log(abbr2offset)
+    let rules = [
+        {
+            value : '-is:retweet from:UtopiaClub3 has:mentions utopia_giveaway'
+        }
+    ]
+
+    //tw.feed_tweets(rules, on_utopia_tweet)
 
     data = await sqlite.load(data_path+'bot.db')
     console.log('load data ...', data)
