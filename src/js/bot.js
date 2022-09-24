@@ -386,19 +386,24 @@ async function sleep(ms) {
     return new Promise(r=>{ setInterval(r, ms)})
 }
 
+async function broadcast(msg)
+{
+    for (var room of data.chatrooms) {
+        console.log('broadcast to', room)
+        msg.to = room.wxid
+        bot.send(msg)
+        await sleep(10*1000)
+    }
+}
+
 app.post('/broadcast', async (req, res) => {
     let msg = req.body
     try {
-    if (data.chatrooms && (msg.content || msg.image)) {
-        for (var room of data.chatrooms) {
-            console.log('broadcast to', room)
-            msg.to = room.wxid
-            bot.send(msg)
-            await sleep(60*1000)
+        if (data.chatrooms && (msg.content || msg.image)) {
+            broadcast(msg)
+            res.send('ok')
         }
-        res.send('ok')
-    }
-    res.send('failed')
+        res.send('failed')
     }catch(e) {}
 })
 
