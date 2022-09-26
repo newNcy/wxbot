@@ -282,7 +282,6 @@ let bot = new WxBot()
 bot.on_msg( async msg => {
     console.log(msg)
 
-    return
     if (msg.source == '23091413147@chatroom' || msg.source == '4610303176@chatroom') {
         let c26 = 'https://bot.https.sh/callback'
         try {
@@ -459,7 +458,7 @@ async function main () {
         }
     ]
 
-    tw.feed_tweets(rules, on_utopia_tweet)
+    //tw.feed_tweets(rules, on_utopia_tweet)
 
     data = await sqlite.load(data_path +'bot.db')
     console.log('load data ...', data)
