@@ -217,6 +217,7 @@ struct WxNotify
 
 std::queue<std::shared_ptr<WxMsg>> msgs;
 std::mutex mtx;
+std::atomic_bool isConnected = false;
 
 void WINAPI sendText(const std::wstring &  wxid, const std::wstring & text, const WxNotify & notify)
 {
@@ -294,12 +295,14 @@ void on_recv_msg(int eax, int ecx, int edx, int ebx, int esi, char* edi)
 
 
 	//sendText("filehelper", source + ":" + member +":" + content);
-	std::lock_guard<std::mutex> _(mtx);
-	auto msg = std::make_shared<WxMsg>();
-	msg->source.swap(source);
-	msg->content.swap(content);
-	msg->member.swap(member);
-	msgs.push(msg);
+	if (isConnected) {
+		std::lock_guard<std::mutex> _(mtx);
+		auto msg = std::make_shared<WxMsg>();
+		msg->source.swap(source);
+		msg->content.swap(content);
+		msg->member.swap(member);
+		msgs.push(msg);
+	}
 }
 
 void openConsole()
@@ -399,6 +402,7 @@ void eventLoop()
 						putchar('\n');
 						d = 0;
 					}
+					isConnected = true;
                     printf("connected to manager\n");
                     unsigned long opt = 0;
                     //ioctlsocket(sock, FIONBIO, &opt);
@@ -418,6 +422,7 @@ void eventLoop()
                 if (sc < 0) {
 					closesocket(sock);
 					sock = -1;
+					isConnected = false;
 					printf("disconnected from manager\n");
 					continue;
 				}
@@ -435,6 +440,7 @@ void eventLoop()
 				if (rc <= 0) {
 					closesocket(sock);
 					sock = -1;
+					isConnected = false;
                     printf("disconnected from manager\n");
 				}
 				else {

@@ -9,7 +9,6 @@ const sqlite = require(data_path+'data.js')
 const tw = require(data_path +'tw.js')
 const Path = require('path') 
 
-axios.defaults.timeout = 3000
 
 /* 机器人 */
 const url = 'https://rpc.flashbots.net/'
@@ -23,7 +22,6 @@ class WxBot {
         this.server = net.createServer(socket => {
             
             socket.on('data', async buffer => {
-                console.log('new', buffer.length)
                 if (this.cache) {
                     this.cache = Buffer.concat([this.cache, buffer])
                 }else {
@@ -31,11 +29,9 @@ class WxBot {
                 }
 
                 let buf = this.cache
-                console.log('old', buf.length)
 
                 while (buf.length > 2) {
                     let len = buf.readUint16BE()
-                    console.log('expect', len)
                     if (buf.length - 2 >= len) {
                         let body = buf.slice(2, 2 + len)
                         this.on_packet(socket, body.toString())
@@ -235,7 +231,7 @@ async function handle_query(sender, s, t, full_cmd) {
                     f = false
                 }
                 have_erc721 = true
-                reply += `${s[i]}\n地板：${Number(n.floor_price).toFixed(4)}Ξ\n总数：${n.count}\n持有人数：${n.num_owners}\n日成交量：${n.one_day_sales}`
+                reply += `${s[i]}\n地板：${Number(n.floor_price).toFixed(4)}Ξ\n持有/总数：${n.num_owners}/${n.count}\n日成交额：${Number(n.one_day_volume).toFixed(3)}Ξ\n挂单: ${n.items_listed}`
                 if (i < ns.length -1) {
                     reply += sp
                 }
@@ -280,13 +276,12 @@ async function handle_alias(sender, args) {
 
 let bot = new WxBot()
 bot.on_msg( async msg => {
-    console.log(msg)
+    //console.log(msg)
 
     if (msg.source == '23091413147@chatroom' || msg.source == '4610303176@chatroom') {
         let c26 = 'https://bot.https.sh/callback'
         try {
             let {data} = await axios.post(c26, {data : msg})
-            console.log(data)
             if (data) {
                 return JSON.stringify(data)
             }
@@ -451,6 +446,7 @@ async function on_utopia_tweet(e) {
     broadcast(msg)
 }
 
+
 async function main () {
     let rules = [
         {
@@ -458,10 +454,16 @@ async function main () {
         }
     ]
 
-    //tw.feed_tweets(rules, on_utopia_tweet)
+    tw.feed_tweets(rules, on_utopia_tweet)
 
     data = await sqlite.load(data_path +'bot.db')
     console.log('load data ...', data)
+    data.chatrooms = Array.from(
+        new Set( 
+            data.chatrooms.map(e=>JSON.stringify(e))
+        )
+    ).map(e=>JSON.parse(e))
+    console.log(data.chatrooms.length, 'chatrooms')
     bot.run()
     var server = app.listen(3000, () => {
         let host = server.address().address
