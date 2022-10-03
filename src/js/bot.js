@@ -8,6 +8,9 @@ const data_path = './data/'
 const sqlite = require(data_path+'data.js')
 const tw = require(data_path +'tw.js')
 const Path = require('path') 
+const mt = require('moment-timezone') 
+
+const admin = 'wxid_qamenm9apak622'
 
 
 /* 机器人 */
@@ -60,16 +63,16 @@ class WxBot {
         try {
             let obj = JSON.parse(msg)
             if (this.msg_callback) {
-            let reply = await this.msg_callback(obj)
-            if (reply != null) {
-                let robj = {
-                    to : obj.source,
-                    content : reply,
-                    notify : obj.member != '' ? [obj.member] : null,
+                let reply = await this.msg_callback(obj)
+                if (reply != null) {
+                    let robj = {
+                        to : obj.source,
+                        content : reply,
+                        notify : obj.member != '' ? [obj.member] : null,
+                    }
+                    socket.write(JSON.stringify(robj))
                 }
-                socket.write(JSON.stringify(robj))
             }
-        }
         }catch(e) {
             console.log(e, msg)
         }
@@ -182,6 +185,10 @@ async function do_alias(sender, s) {
         for (var i in s) {
             let v = s[i]
             let e = data.alias.find(e => e.user == sender && e.name == v && e.value.length > 0)
+            if (!e) {
+                e = data.alias.find(e => e.user == admin && e.name == v && e.value.lenggth > 0)
+            }
+
             if (e) {
                 console.log(v, '->', e.value)
                res.push(e.value)
@@ -231,7 +238,7 @@ async function handle_query(sender, s, t, full_cmd) {
                     f = false
                 }
                 have_erc721 = true
-                reply += `${s[i]}\n地板：${Number(n.floor_price).toFixed(4)}Ξ\n持有/总数：${n.num_owners}/${n.count}\n日成交额：${Number(n.one_day_volume).toFixed(3)}Ξ\n挂单: ${n.items_listed}`
+                reply += `${s[i]}\n地板：${Number(n.floor_price).toFixed(4)}Ξ\n挂单：${n.items_listed}\n日成交额：${Number(n.one_day_volume).toFixed(3)}Ξ\n持有/总数：${n.num_owners}/${n.count}`
                 if (i < ns.length -1) {
                     reply += sp
                 }
@@ -267,16 +274,20 @@ async function handle_alias(sender, args) {
                 data.alias.push(o)
             }
         }
-        return `已将 ${args[0]} 映射为 ${args[1]}`
+        return `已将 ${args[0]} 关联到 ${args[1]}`
     }
 
     return ''
 }
 
 
+function t(m) {
+    return m.format('YYYY-MM-DD HH:mm:ss')
+}
+
 let bot = new WxBot()
 bot.on_msg( async msg => {
-    //console.log(msg)
+    console.log(msg)
 
     if (msg.source == '23091413147@chatroom' || msg.source == '4610303176@chatroom') {
         let c26 = 'https://bot.https.sh/callback'
@@ -300,6 +311,7 @@ bot.on_msg( async msg => {
         }
     }
 
+
     let text = msg.content
     if (text.startsWith('@chain-bot')) {
         return "嗯"
@@ -322,7 +334,7 @@ bot.on_msg( async msg => {
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
             reply = Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
-        } /*else if (mt.tz.zone(cmd)) {
+        } else if (mt.tz.zone(cmd)) {
             if (args.length == 0) {
                 return `${cmd}时间 \n${mt().tz(cmd).format('YYYY-MM-DD HH:mm:ss')}`
             }else {
@@ -333,11 +345,22 @@ bot.on_msg( async msg => {
 
                 return `${cmd}时间\n${t(om)}\n北京时间\n${t(lm)}`
             }
-        }*/ else if (cmd == 'remind') {
+        } else if (cmd == 'remind') {
             if (args.length !=2) {
                 return '/remind 时间 备忘'
             }
             return `${args[0]} 时提醒你-${args[1]}`
+        }else if (cmd == 'reg') {
+            if (args.length == 1 && sender == 'wxid_qamenm9apak622' && sender != msg.source) {
+                data.proxy = data.proxy ? data.proxy : []
+                let rec = data.proxy.findIndex(e=> e.from == args[0]  && e.to == msg.source)
+                if (rec < 0) {
+                    data.proxy.push({from : args[0], to : msg.source})
+                    return `已为此群订阅来自 ${args[0]} 的推送`
+                } else {
+                    return '记录已存在'
+                }
+            }
         }else if (cmd == 'menu') {
             return '/gas \n/<token>'
         }else if (cmd == 'alias') {
@@ -368,6 +391,24 @@ app.use(express.json())
 
 app.post('/send', (req, res) => {
     let cmd = req.body
+
+    if (cmd.from == 'dandao') {
+        cmd.to = '21345624925@chatroom'
+    } else {
+        if (data.proxy) {
+            let to = data.proxy.findIndex(e => e.from == cmd.from)
+            if (to >= 0) {
+                cmd.to = data.proxy[to].to
+            }
+        } else {
+            console.log('no proxy data')
+        }
+    }
+    if (!cmd.to) {
+        res.json({error:'unknown from'})
+        return
+    }
+
     if (cmd.to && (cmd.content|| cmd.image)) {
         bot.send(cmd)
     }
@@ -454,7 +495,7 @@ async function main () {
         }
     ]
 
-    tw.feed_tweets(rules, on_utopia_tweet)
+    //tw.feed_tweets(rules, on_utopia_tweet)
 
     data = await sqlite.load(data_path +'bot.db')
     console.log('load data ...', data)
