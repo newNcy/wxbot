@@ -108,13 +108,31 @@ async function collection_stats(slug) {
     }
 }
 
+let gem_cache = {}
+
+function get_sec() {
+    return Math.floor(new Date() / 1000)
+}
+
 async function gem_collections(slug) {
-    let {data:data} = await axios.post(`https://api-5.gemlabs.xyz/collections`, {
+    slug = slug.toLowerCase()
+    if (gem_cache[slug]) {
+        let c = gem_cache[slug]
+        let now = get_sec()
+        if (now - c.time < 10) {
+            return c
+        }
+    }
+    let url = 'https://gem-api-v2-4.herokuapp.com/collections'
+    let key = 'rLnNH1tdrT09EQjGsjrSS7V3uGonfZLW'
+    let url2 = `https://api-5.gemlabs.xyz/collections`
+    let key2 = 'iMHRYlpIXs3zfcBY1r3iKLdqS2YUuOUs'
+    let {data:data} = await axios.post( url, {
         fields : {slug:1, name:1, stats:{floor_price:1, }},
             filters : { slug: slug.toLowerCase()}
         }, {
         headers : {
-            'x-api-key': 'iMHRYlpIXs3zfcBY1r3iKLdqS2YUuOUs',
+            'x-api-key': key,
             'Content-type': 'application/json',
             'referer':'https://www.gem.xyz/',
             'origin':'https://www.gem.xyz'
@@ -125,15 +143,18 @@ async function gem_collections(slug) {
             return data
         }
         console.log(data)
-    let list = data.data
-    let ls = slug.toLowerCase()
-    for (var d of list) {
-        let ss = d.slug.toLowerCase()
-        console.log(d, ss, ls)
-        if (ss == ls) {
-            return d.stats
+        let list = data.data
+        let ls = slug.toLowerCase()
+        for (var d of list) {
+            let ss = d.slug.toLowerCase()
+            console.log(d, ss, ls)
+            if (ss == ls) {
+                let r = d.stats
+                r.time = get_sec()
+                gem_cache[slug] = r
+                return r
+            }
         }
-    }
     }catch(e) {
         console.log(e)
     }
@@ -300,6 +321,9 @@ bot.on_msg( async msg => {
             console.log(e)
         }
     }
+
+    
+
     if (msg.source.endsWith('@chatroom')) {
         let row = { wxid : msg.source }
         if (!data.chatrooms) {
@@ -313,9 +337,6 @@ bot.on_msg( async msg => {
 
 
     let text = msg.content
-    if (text.startsWith('@chain-bot')) {
-        return "嗯"
-    }
     let is_cmd = text.startsWith('/')
     let full_cmd = text.substr(1).trim().toLowerCase()
     let segs = full_cmd.split(' ')
@@ -331,6 +352,29 @@ bot.on_msg( async msg => {
         'YYYY-MM-DD HH:mm:ss',
     ]
     if (is_cmd) {
+        if (msg.source == '21345624925@chatroom') {
+            let dandao = 'http://175.27.128.209:8088/partner/nft/receiveCmd'
+            msg.cmd = cmd
+            msg.is_cmd = is_cmd
+            msg.args = args
+            console.log(msg)
+            try {
+                let {data}= await axios({
+                    url:dandao,
+                    method:"post",
+                    headers:{
+                        "Content-Type":"application/json"
+                    },
+                    data:msg
+                })
+                console.log('dandao', data)
+                if (data) {
+                    return JSON.stringify(data)
+                }
+            }catch (e) {
+                console.log(e)
+            }
+        }
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
             reply = Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
