@@ -100,7 +100,11 @@ async function collection_stats(slug) {
         let {data:stats} = await axios.get(`https://api.opensea.io/api/v1/collection/${slug}/stats`, {
             headers: {
                 'X-API-KEY': '2f6f419a083c46de9d83ce3dbe7db601'
-            } 
+            },
+            proxy : {
+                host : '127.0.0.1',
+                port : 7890
+            }
         })
         return stats.stats
     }catch(e) {
@@ -119,44 +123,44 @@ async function gem_collections(slug) {
     if (gem_cache[slug]) {
         let c = gem_cache[slug]
         let now = get_sec()
-        if (now - c.time < 10) {
+        if (now - c.time < 20) {
             return c
         }
     }
-    let url = 'https://gem-api-v2-4.herokuapp.com/collections'
+    let url = 'https://api-v2-4.gemlabs.xyz/collections'
     let key = 'rLnNH1tdrT09EQjGsjrSS7V3uGonfZLW'
-    let url2 = `https://api-5.gemlabs.xyz/collections`
+    let url2 = `https://api-v2-4.gemlabs.xyz/collections`
     let key2 = 'iMHRYlpIXs3zfcBY1r3iKLdqS2YUuOUs'
-    let {data:data} = await axios.post( url, {
-        fields : {slug:1, name:1, stats:{floor_price:1, }},
+
+    for (var v = 4; v < 7; ++ v) {
+        let {data:data} = await axios.post( `https://api-v2-${v}.gemlabs.xyz/collections`, {
+                fields : {slug:1, name:1, stats:{floor_price:1, }},
             filters : { slug: slug.toLowerCase()}
         }, {
-        headers : {
-            'x-api-key': key,
-            'Content-type': 'application/json',
-            'referer':'https://www.gem.xyz/',
-            'origin':'https://www.gem.xyz'
-        },
-    })
-    try {
-        if (data.error) {
-            return data
-        }
-        console.log(data)
-        let list = data.data
-        let ls = slug.toLowerCase()
-        for (var d of list) {
-            let ss = d.slug.toLowerCase()
-            console.log(d, ss, ls)
-            if (ss == ls) {
-                let r = d.stats
-                r.time = get_sec()
-                gem_cache[slug] = r
-                return r
+            headers : {
+                'x-api-key': key,
+                'Content-type': 'application/json',
+                'referer':'https://www.gem.xyz/',
+                'origin':'https://www.gem.xyz'
+            },
+            proxy : { host : '127.0.0.1', port : 7890 }
+        })
+        try {
+            console.log(data)
+            let list = data.data
+            let ls = slug.toLowerCase()
+            for (var d of list) {
+                let ss = d.slug.toLowerCase()
+                if (ss == ls) {
+                    let r = d.stats
+                    r.time = get_sec()
+                    gem_cache[slug] = r
+                    return r
+                }
             }
+        }catch(e) {
+            console.log(e)
         }
-    }catch(e) {
-        console.log(e)
     }
 }
 
@@ -176,9 +180,24 @@ async function fetch_erc20(s, t) {
     return getFullNum(p)
 }
 
+async function fetch_erc20_coinmarketcap(s, t) {
+    try {
+    let {data:{data}} = await axios.get(`https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?symbol=${s}&convert=${t}`, {
+        headers: {
+            'X-CMC_PRO_API_KEY': '7d08a0f8-00ba-4f6e-83ed-8f67a9df2105',
+            'Accept': 'application/json',
+      },
+    })
+    console.log(data)
+    }catch(e) {
+    console.log(e)
+    }
+}
+
 async function fetch_erc20_list(ss, t) {
     let ps = new Array()
     for (var e of ss) {
+        //fetch_erc20_coinmarketcap(e, t)
         ps.push(fetch_erc20(e, t))
     }
 
@@ -207,7 +226,7 @@ async function do_alias(sender, s) {
             let v = s[i]
             let e = data.alias.find(e => e.user == sender && e.name == v && e.value.length > 0)
             if (!e) {
-                e = data.alias.find(e => e.user == admin && e.name == v && e.value.lenggth > 0)
+                e = data.alias.find(e => e.user == admin && e.name == v && e.value.length > 0)
             }
 
             if (e) {
@@ -224,12 +243,40 @@ async function do_alias(sender, s) {
     return res
 }
 
+function emit_query_event(name)
+{
+    if (!data.query_log) {
+        data.query_log = []
+    }
+    let item = data.query_log.find(e => e.name == name)
+    if (!item) {
+        item = {name : name, count : 0}
+        data.query_log.push(item)
+    }
+
+    item.count ++;
+    console.log(item)
+}
+
 async function handle_query(sender, s, t, full_cmd) {
     let reply = ''
     let needs = false
     let have_erc20 = false
     let have_erc721 = false
-    s = await do_alias(sender, s)
+    let rs = await do_alias(sender, s)
+
+    let alias_hint = false
+    let alias_ex = ''
+    for (let i in rs) {
+        let t = rs[i]
+        emit_query_event(t)
+        if (t.length > 10 && t == s[i]) {
+            alias_hint = true
+            alias_ex = t
+        }
+    }
+
+    s = rs
     console.log(s)
     let sp = '\n------------------\n'
     try {
@@ -266,12 +313,12 @@ async function handle_query(sender, s, t, full_cmd) {
 
             }
         }
-    }catch(e) {
+    }catch (e) {
         console.log(e)
     }
 
-    if (!have_erc20 && !have_erc721) {
-        return `没找到任何跟 ${full_cmd} 有关的信息`
+    if (alias_hint && reply && reply.length > 0) {
+        reply += `${sp}ps:可以使用 /alias 缩写 全称\n即可用 /缩写 查询`
     }
     return reply
 }
@@ -306,10 +353,17 @@ function t(m) {
     return m.format('YYYY-MM-DD HH:mm:ss')
 }
 
+var menu = 
+`1. 查询当前gas price  /gas
+2. 查询erc20/erc721    /gem上的名字(slug) 
+  2.1 同时查多个用:分隔 例如 /azuki:eth
+  2.2 token价格默认用usd显示，如果需要换一种价格币，可以用 >名称 指定， 例如 /eth>btc 返回eth的btc价格 也就是eth/btc交易对价格
+3. 当token名字不便于输入时，使用 /alias 缩写 原名称， 下次查询使用 /缩写 将替换成 /原名称`
+
 let bot = new WxBot()
 bot.on_msg( async msg => {
-    console.log(msg)
-
+    if (msg.source == '20822945064@chatroom')
+        return
     if (msg.source == '23091413147@chatroom' || msg.source == '4610303176@chatroom') {
         let c26 = 'https://bot.https.sh/callback'
         try {
@@ -375,6 +429,8 @@ bot.on_msg( async msg => {
                 console.log(e)
             }
         }
+
+        console.log('exec', cmd)
         if (cmd == 'gas') {
             let gasPrice = await provider.getGasPrice()
             reply = Number(utils.formatUnits(gasPrice, "gwei")).toFixed(2) + ' gwei'
@@ -405,8 +461,8 @@ bot.on_msg( async msg => {
                     return '记录已存在'
                 }
             }
-        }else if (cmd == 'menu') {
-            return '/gas \n/<token>'
+        }else if (cmd == 'help') {
+            reply = menu
         }else if (cmd == 'alias') {
             return handle_alias(sender, args)
         }else {
@@ -417,9 +473,11 @@ bot.on_msg( async msg => {
                 t = ts[1]
             }
 
-            let reply = await handle_query(sender, s, t, full_cmd)
+            reply = await handle_query(sender, s, t, full_cmd)
 
-            return reply
+        }
+        if (!reply || reply.length == 0) {
+            reply = `未找到任何 ${full_cmd} 相关信息, /help 获取帮助信息`
         }
 
         return reply
@@ -535,11 +593,11 @@ async function on_utopia_tweet(e) {
 async function main () {
     let rules = [
         {
-            value : '-is:retweet from:UtopiaClub3 has:mentions utopia_giveaway'
+            value : '-is:retweet from:UtopiaClub3 has:mentions UTPCryptoGirl'
         }
     ]
 
-    //tw.feed_tweets(rules, on_utopia_tweet)
+    tw.feed_tweets(rules, on_utopia_tweet)
 
     data = await sqlite.load(data_path +'bot.db')
     console.log('load data ...', data)
